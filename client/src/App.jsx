@@ -19,7 +19,7 @@ export default function App() {
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
 
-  // Auto-scroll
+  // Auto scroll
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -61,7 +61,7 @@ export default function App() {
       const data = await response.json();
       const text = data.content || '';
 
-      // Typewriter effect — drives the "speaking" state duration
+      // Typewriter effect 
       setMessages((prev) => [...prev, { role: 'assistant', content: '', typing: true }]);
       setAgentState('speaking');
 
@@ -130,8 +130,8 @@ export default function App() {
             {messages.length === 0 ? (
               <div className="suggestions">
                 {[
-                  'Help me name a small-batch coffee brand',
-                  'My tagline feels generic — fix it',
+                  'Help me name a small coffee brand',
+                  'My tagline feels generic, can you fix it',
                   "What's wrong with my About page copy?",
                 ].map((s) => (
                   <button key={s} className="suggestion-chip" onClick={() => setInput(s)}>
@@ -184,7 +184,7 @@ export default function App() {
       </main>
 
       <footer className="footer">
-        <span>candidate prototype · {new Date().getFullYear()}</span>
+        <span>Sixtus Kuudaar · {new Date().getFullYear()}</span>
       </footer>
     </div>
   );
