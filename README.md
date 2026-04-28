@@ -162,6 +162,14 @@ The brief said *"think Microsoft Clippy, but actually good."* That framing made 
 - **Honest mode** ("Roast mode") — toggleable pill in the chat. Swaps Brandee's system prompt to an unfiltered version: still warm, still affectionate, but allowed to call out clichés, generic startup language, and weak ideas with specific, quotable feedback. The whole UI shifts when on: skeptical side-eye on the avatar, red status pill reading `HONEST MODE`, suggestion chips become roast-y, input placeholder changes to "Drop something for Brandee to roast…". This is the share-able moment — users will screenshot her takedowns for their group chats.
 - **Drag / paste / upload an image** — drop a logo, screenshot, mockup, or moodboard onto the app and Brandee will look at it and give a short opinionated take. Three intake methods: drag-and-drop (with a full-screen "Drop it here" overlay), paste from clipboard (Cmd/Ctrl+V), or click the attach icon in the input. Combine with honest mode for maximum effect — "rate my logo" is already a viral TikTok format. Server validates type (JPEG/PNG/WebP/GIF), size (5MB cap), and shape; the Anthropic API does the actual vision.
 
+**Voice (v4):**
+- **She speaks back.** Set `ELEVENLABS_API_KEY` in `server/.env` (sign up at elevenlabs.io — free tier covers ~10k characters/month) and Brandee's responses come through as audio. Default voice is "Charlotte" — warm, soft, slightly mischievous; matches her personality. Override `ELEVENLABS_VOICE_ID` to use any voice from the ElevenLabs library.
+- **Talk to her.** Mic button in the input bar opens speech-to-text via the browser's native Web Speech API (Chrome / Edge / Safari supported, free, no API key, audio doesn't go to your server). Recognition populates the input — you can edit before sending or just hit enter.
+- **Lip sync.** When she speaks, the audio runs through a Web Audio `AnalyserNode` and the RMS amplitude drives her mouth scaling in real time. So her mouth actually opens with what she's saying — louder syllables → bigger mouth — instead of a generic talk-loop animation.
+- **Streamed audio.** Server uses ElevenLabs' Flash v2.5 model (≈75ms time-to-first-byte) and proxies the streaming MP3 response. Audio starts playing as soon as the blob arrives (sub-second after the text response finishes).
+- **Graceful degradation.** If `ELEVENLABS_API_KEY` isn't set, voice playback is silently disabled — the rest of the app works exactly the same. The mic button still shows for STT-capable browsers (it doesn't depend on the server). Toggle it all off in Settings if you don't want either.
+- **Stop button.** Tap the "Brandee is speaking — tap to stop" pill to interrupt mid-sentence. Starting a new message also cancels in-flight audio.
+
 ## What I'd still improve with more time
 
 1. **Voice output with lip-sync.** Drive the mouth animation off audio amplitude (Web Audio analyser node). ElevenLabs has a warm, slightly playful voice library that would fit her.

@@ -1471,3 +1471,100 @@ button:focus-visible,
   font-size: 13px;
   color: var(--ink-soft);
 }
+
+/* ============== VOICE — MIC BUTTON ============== */
+.mic-btn {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink-faint);
+  border: 1px solid transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.mic-btn:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--bg-deep);
+}
+.mic-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.mic-btn.recording {
+  background: var(--accent-hot);
+  color: var(--surface);
+  border-color: var(--accent-hot);
+  animation: mic-recording 1s ease-in-out infinite;
+}
+@keyframes mic-recording {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(199, 93, 63, 0.55); }
+  50% { box-shadow: 0 0 0 7px rgba(199, 93, 63, 0); }
+}
+
+.mic-pulse {
+  position: absolute;
+  inset: -2px;
+  border-radius: 14px;
+  border: 2px solid var(--accent-hot);
+  pointer-events: none;
+  animation: mic-ring 1.4s ease-out infinite;
+}
+@keyframes mic-ring {
+  0% { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(1.45); opacity: 0; }
+}
+
+/* ============== SPEAKING INDICATOR ============== */
+.speaking-indicator {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 14px 7px 12px;
+  background: rgba(31, 26, 20, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: all 0.15s;
+  align-self: flex-start;
+  margin-left: 4px;
+  animation: msg-in 0.25s ease-out;
+}
+.speaking-indicator:hover {
+  background: var(--bg-deep);
+  color: var(--ink);
+}
+
+.speaking-bars {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 14px;
+}
+.speaking-bars > span {
+  display: block;
+  width: 3px;
+  background: var(--accent);
+  border-radius: 2px;
+  animation: speaking-bar 0.9s ease-in-out infinite;
+}
+.speaking-bars > span:nth-child(1) { height: 6px;  animation-delay: 0s;    }
+.speaking-bars > span:nth-child(2) { height: 12px; animation-delay: 0.15s; }
+.speaking-bars > span:nth-child(3) { height: 8px;  animation-delay: 0.3s;  }
+.speaking-bars > span:nth-child(4) { height: 14px; animation-delay: 0.45s; }
+@keyframes speaking-bar {
+  0%, 100% { transform: scaleY(0.4); }
+  50%      { transform: scaleY(1); }
+}
+
+/* When mic is recording, the input bar gets a soft warm border */
+.input-bar:has(.mic-btn.recording) {
+  border-color: var(--accent-hot);
+  box-shadow: 0 0 0 3px rgba(199, 93, 63, 0.10);
+}

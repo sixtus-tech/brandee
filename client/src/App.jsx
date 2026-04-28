@@ -6,6 +6,8 @@ import { OnboardingPointer } from './hooks/useOnboarding.jsx';
 import useIdleBehaviors from './hooks/useIdleBehaviors.js';
 import useCursorGaze from './hooks/useCursorGaze.js';
 import useOnboarding from './hooks/useOnboarding.jsx';
+import useTextToSpeech from './hooks/useTextToSpeech.js';
+import useSpeechRecognition from './hooks/useSpeechRecognition.js';
 
 const SETTINGS_KEY = 'brandee_settings_v1';
 
@@ -14,6 +16,7 @@ const DEFAULT_SETTINGS = {
   color: 'Peach',
   idleEnabled: true,
   reduceMotion: false,
+  voiceEnabled: true,
 };
 
 export default function App() {
@@ -65,6 +68,51 @@ export default function App() {
   useEffect(() => {
     if (cursorGaze.active) registerActivity();
   }, [cursorGaze.active, registerActivity]);
+
+  // ============== VOICE (TTS + STT) ==============
+  const tts = useTextToSpeech();
+  const stt = useSpeechRecognition({
+    onFinal: (text) => {
+      // When recognition completes, populate the input. The user can edit
+      // before sending, or just hit send. We don't auto-send so they have control.
+      setInput(text);
+      // Refocus input so they can edit / hit enter
+      setTimeout(() => {
+        const el = document.querySelector('textarea.input');
+        el?.focus();
+      }, 50);
+    },
+  });
+
+  // When mic is recording, treat as listening and pause idle
+  useEffect(() => {
+    if (stt.isListening) {
+      setAgentState('listening');
+      registerActivity();
+    }
+  }, [stt.isListening, registerActivity]);
+
+  // Stop TTS playback if user starts a new request or toggles voice off
+  useEffect(() => {
+    if (!settings.voiceEnabled && tts.isSpeaking) tts.stop();
+  }, [settings.voiceEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When TTS playback finishes, ease Brandee back to idle
+  const wasSpeakingRef = useRef(false);
+  useEffect(() => {
+    if (tts.isSpeaking) {
+      wasSpeakingRef.current = true;
+      // Make sure she's in the speaking state during audio
+      if (agentState !== 'speaking') setAgentState('speaking');
+    } else if (wasSpeakingRef.current) {
+      wasSpeakingRef.current = false;
+      // Audio finished — drop back to idle after a beat
+      setTimeout(() => {
+        setAgentState('idle');
+        setTimeout(() => setAgentMood(roastMode ? 'skeptical' : 'neutral'), 4000);
+      }, 400);
+    }
+  }, [tts.isSpeaking]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ============== ONBOARDING ==============
   const triggerWave = useCallback(() => {
@@ -288,16 +336,28 @@ export default function App() {
     };
 
     const finalize = () => {
+      let finalText = '';
       setMessages((prev) => {
         const copy = [...prev];
-        copy[copy.length - 1] = { ...copy[copy.length - 1], typing: false };
+        const last = copy[copy.length - 1];
+        copy[copy.length - 1] = { ...last, typing: false };
+        finalText = last.content || '';
         return copy;
       });
       setIsLoading(false);
-      setTimeout(() => {
-        setAgentState('idle');
-        setTimeout(() => setAgentMood(roastMode ? 'skeptical' : 'neutral'), 4000);
-      }, 600);
+
+      // Voice playback
+      if (settings.voiceEnabled && tts.isAvailable && finalText) {
+        // Keep her in the speaking state during audio playback
+        // The TTS hook will drive amplitude into the avatar
+        tts.speak(finalText).catch(() => {});
+        // We'll let the audio onended event cycle her back to idle
+      } else {
+        setTimeout(() => {
+          setAgentState('idle');
+          setTimeout(() => setAgentMood(roastMode ? 'skeptical' : 'neutral'), 4000);
+        }, 600);
+      }
     };
 
     try {
@@ -417,6 +477,7 @@ export default function App() {
           mood={agentMood}
           vignette={vignette}
           cursorGaze={cursorGaze}
+          audioAmplitude={tts.amplitude}
           onPoke={handlePoke}
           brandeeName={settings.name || 'Brandee'}
           hasMessages={messages.length > 0}
@@ -438,6 +499,15 @@ export default function App() {
           pendingImage={pendingImage}
           onClearPendingImage={() => setPendingImage(null)}
           onPickFile={stageFile}
+          voiceEnabled={settings.voiceEnabled}
+          ttsAvailable={tts.isAvailable}
+          ttsSpeaking={tts.isSpeaking}
+          onStopSpeaking={tts.stop}
+          sttSupported={stt.isSupported}
+          sttListening={stt.isListening}
+          sttInterim={stt.interim}
+          onStartListening={() => { tts.stop(); stt.start(); }}
+          onStopListening={stt.stop}
         />
       </main>
 

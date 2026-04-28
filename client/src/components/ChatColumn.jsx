@@ -20,6 +20,16 @@ export default function ChatColumn({
   pendingImage = null,
   onClearPendingImage,
   onPickFile,
+  // Voice
+  voiceEnabled = true,
+  ttsAvailable = false,
+  ttsSpeaking = false,
+  onStopSpeaking,
+  sttSupported = false,
+  sttListening = false,
+  sttInterim = '',
+  onStartListening,
+  onStopListening,
 }) {
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
@@ -185,7 +195,9 @@ export default function ChatColumn({
             ref={inputRef}
             className="input"
             placeholder={
-              pendingImage
+              sttListening
+                ? sttInterim || 'Listening…'
+                : pendingImage
                 ? `Add a note (or just hit send and ${brandeeName} will take a look)…`
                 : roastMode
                 ? `Drop something for ${brandeeName} to roast…`
@@ -194,14 +206,49 @@ export default function ChatColumn({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKeyDown}
-            disabled={isLoading}
+            disabled={isLoading || sttListening}
             rows={1}
             aria-label="Message input"
           />
+
+          {/* Mic button — only shown when voice is enabled and STT is supported */}
+          {voiceEnabled && sttSupported && (
+            <button
+              type="button"
+              className={`mic-btn ${sttListening ? 'recording' : ''}`}
+              onClick={sttListening ? onStopListening : onStartListening}
+              disabled={isLoading}
+              aria-label={sttListening ? 'Stop listening' : 'Talk to Brandee'}
+              aria-pressed={sttListening}
+              title={sttListening ? 'Tap to stop' : 'Tap to talk'}
+            >
+              {sttListening ? (
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
+                  <rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
+                  <path
+                    d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"
+                    fill="currentColor"
+                  />
+                  <path
+                    d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3M8 22h8"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    fill="none"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              )}
+              {sttListening && <span className="mic-pulse" aria-hidden />}
+            </button>
+          )}
+
           <button
             className="send-btn"
             onClick={onSend}
-            disabled={(!input.trim() && !pendingImage) || isLoading}
+            disabled={(!input.trim() && !pendingImage) || isLoading || sttListening}
             aria-label="Send message"
           >
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
@@ -216,6 +263,22 @@ export default function ChatColumn({
             </svg>
           </button>
         </div>
+
+        {/* Speaking indicator — shown while TTS audio is playing */}
+        {ttsSpeaking && (
+          <button
+            type="button"
+            className="speaking-indicator"
+            onClick={onStopSpeaking}
+            aria-label="Stop speaking"
+            title="Tap to stop"
+          >
+            <span className="speaking-bars" aria-hidden>
+              <span /><span /><span /><span />
+            </span>
+            <span>{brandeeName} is speaking — tap to stop</span>
+          </button>
+        )}
       </div>
     </section>
   );

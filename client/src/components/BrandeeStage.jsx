@@ -12,6 +12,7 @@ const BrandeeStage = forwardRef(function BrandeeStage({
   mood,
   vignette,
   cursorGaze,
+  audioAmplitude = 0,
   onPoke,
   brandeeName = 'Brandee',
   hasMessages = false,
@@ -28,6 +29,7 @@ const BrandeeStage = forwardRef(function BrandeeStage({
           mood={mood}
           vignette={vignette}
           cursorGaze={cursorGaze}
+          audioAmplitude={audioAmplitude}
           onPoke={onPoke}
           size={260}
         />

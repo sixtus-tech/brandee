@@ -20,6 +20,7 @@ const BrandeeAvatar = forwardRef(function BrandeeAvatar({
   mood = 'neutral',
   vignette = null,
   cursorGaze = null,
+  audioAmplitude = 0,
   onPoke,
   size = 200,
   compact = false,
@@ -343,7 +344,7 @@ const BrandeeAvatar = forwardRef(function BrandeeAvatar({
           )}
 
           {/* MOUTH */}
-          <Mouth state={visualState} mood={mood} />
+          <Mouth state={visualState} mood={mood} amplitude={audioAmplitude} />
 
           {/* Sweat drop for thinking-hard / annoyed */}
           {(isThinking || isAnnoyed) && (
@@ -530,12 +531,28 @@ function Star({ cx, cy }) {
 }
 
 // ============== MOUTH SUB-COMPONENT ==============
-function Mouth({ state, mood }) {
+function Mouth({ state, mood, amplitude = 0 }) {
   const stroke = '#1A1815';
   const sw = 3;
 
-  // Speaking — animated open ellipse
+  // Speaking — open ellipse, scaled by audio amplitude when audio is active
   if (state === 'speaking') {
+    if (amplitude > 0.001) {
+      // Audio-driven mouth: amplitude maps to vertical opening
+      const ry = 2 + amplitude * 12;  // 2..14
+      const rx = 9 + amplitude * 4;   // 9..13
+      return (
+        <ellipse
+          cx="130"
+          cy="158"
+          rx={rx}
+          ry={ry}
+          fill={stroke}
+          style={{ transition: 'rx 0.04s linear, ry 0.04s linear' }}
+        />
+      );
+    }
+    // Fallback to keyframe-based talk loop when no audio amplitude
     return (
       <ellipse
         cx="130" cy="158" rx="11" ry="9"

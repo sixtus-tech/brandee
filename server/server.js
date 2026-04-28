@@ -18,6 +18,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
 const MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5';
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || '';
+// Default voice: "Charlotte" — warm, soft, slightly mischievous. Fits Brandee.
+const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || 'XB0fDUnXU5powFXDhCwa';
+const ELEVENLABS_MODEL_ID = process.env.ELEVENLABS_MODEL_ID || 'eleven_flash_v2_5';
 
 if (!process.env.ANTHROPIC_API_KEY) {
   console.error('\n  Missing ANTHROPIC_API_KEY in .env');
@@ -116,9 +120,95 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     model: MODEL,
-    version: '3.0.0',
+    version: '4.0.0',
+    voice: !!ELEVENLABS_API_KEY,
     timestamp: new Date().toISOString(),
   });
+});
+
+// Lightweight config endpoint clients can hit at startup
+app.get('/api/voice/config', (req, res) => {
+  res.json({
+    enabled: !!ELEVENLABS_API_KEY,
+    voiceId: ELEVENLABS_API_KEY ? ELEVENLABS_VOICE_ID : null,
+  });
+});
+
+// TTS — proxies ElevenLabs streaming MP3 so the API key stays server-side.
+// Body: { text: string }   Response: audio/mpeg streamed
+app.post('/api/tts', chatLimiter, async (req, res) => {
+  if (!ELEVENLABS_API_KEY) {
+    return res.status(503).json({ error: 'Voice is not configured on the server.' });
+  }
+  const { text } = req.body || {};
+  if (typeof text !== 'string' || text.length === 0) {
+    return res.status(400).json({ error: 'text required' });
+  }
+  if (text.length > 4000) {
+    return res.status(400).json({ error: 'text too long' });
+  }
+
+  // Strip the JSON mood header if it slipped through (defensive)
+  let speakText = text;
+  const headerMatch = speakText.trimStart().match(/^\{[^}]*\}\s*\n+/);
+  if (headerMatch) speakText = speakText.trimStart().slice(headerMatch[0].length);
+  // Strip markdown chars that read awkwardly in TTS
+  speakText = speakText.replace(/[*_`]/g, '');
+
+  try {
+    const upstream = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(ELEVENLABS_VOICE_ID)}/stream`,
+      {
+        method: 'POST',
+        headers: {
+          'xi-api-key': ELEVENLABS_API_KEY,
+          'Content-Type': 'application/json',
+          'Accept': 'audio/mpeg',
+        },
+        body: JSON.stringify({
+          text: speakText,
+          model_id: ELEVENLABS_MODEL_ID,
+          voice_settings: {
+            stability: 0.45,
+            similarity_boost: 0.75,
+            style: 0.5,
+            use_speaker_boost: true,
+          },
+          output_format: 'mp3_44100_128',
+        }),
+      }
+    );
+
+    if (!upstream.ok) {
+      const errText = await upstream.text().catch(() => '');
+      console.error('ElevenLabs error:', upstream.status, errText.slice(0, 200));
+      return res.status(502).json({ error: 'Voice provider error' });
+    }
+
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    // Pipe upstream stream → response
+    const reader = upstream.body.getReader();
+    let aborted = false;
+    req.on('close', () => {
+      aborted = true;
+      try { reader.cancel(); } catch {}
+    });
+    while (!aborted) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!res.write(Buffer.from(value))) {
+        await new Promise((r) => res.once('drain', r));
+      }
+    }
+    res.end();
+  } catch (e) {
+    console.error('TTS error:', e?.message || e);
+    if (!res.headersSent) res.status(500).json({ error: 'TTS failed' });
+    else res.end();
+  }
 });
 
 // ---- validation ----
@@ -286,6 +376,7 @@ if (existsSync(clientDist)) {
 }
 
 app.listen(PORT, () => {
-  console.log(`\n  Brandee v3 server running on http://localhost:${PORT}`);
-  console.log(`  Model: ${MODEL}\n`);
+  console.log(`\n  Brandee v4 server running on http://localhost:${PORT}`);
+  console.log(`  Model: ${MODEL}`);
+  console.log(`  Voice: ${ELEVENLABS_API_KEY ? 'enabled (ElevenLabs)' : 'disabled (set ELEVENLABS_API_KEY to enable)'}\n`);
 });
