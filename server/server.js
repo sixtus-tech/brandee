@@ -87,7 +87,7 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     model: MODEL,
-    version: '2.5.0',
+    version: '3.0.0',
     timestamp: new Date().toISOString(),
   });
 });
@@ -219,6 +219,6 @@ if (existsSync(clientDist)) {
 }
 
 app.listen(PORT, () => {
-  console.log(`\n  Brandee v2.5 server running on http://localhost:${PORT}`);
+  console.log(`\n  Brandee v3 server running on http://localhost:${PORT}`);
   console.log(`  Model: ${MODEL}\n`);
 });

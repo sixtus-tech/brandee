@@ -67,7 +67,7 @@ export default function SettingsPanel({
           placeholder="Brandee"
           maxLength={20}
         />
-        <p className="settings-hint">What you call her in the sidebar.</p>
+        <p className="settings-hint">What she goes by here.</p>
       </div>
 
       <div className="settings-section">

@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import AppShell from './components/AppShell.jsx';
-import ChatPanel from './components/ChatPanel.jsx';
-import MockDashboard from './components/MockDashboard.jsx';
+import BrandeeStage from './components/BrandeeStage.jsx';
+import ChatColumn from './components/ChatColumn.jsx';
 import SettingsPanel, { COLOR_OPTIONS } from './components/SettingsPanel.jsx';
+import { OnboardingPointer } from './hooks/useOnboarding.jsx';
 import useIdleBehaviors from './hooks/useIdleBehaviors.js';
 import useCursorGaze from './hooks/useCursorGaze.js';
 import useOnboarding from './hooks/useOnboarding.jsx';
@@ -43,8 +43,6 @@ export default function App() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [chatOpen, setChatOpen] = useState(false);
-  const [hasUnread, setHasUnread] = useState(false);
 
   // ============== AVATAR STATE ==============
   const [agentState, setAgentState] = useState('idle');
@@ -54,15 +52,13 @@ export default function App() {
   const idleEnabled =
     settings.idleEnabled &&
     !isLoading &&
-    !chatOpen &&
     !['speaking', 'celebrating', 'error'].includes(agentState);
-  const { vignette, isBored, registerActivity, peekChat } = useIdleBehaviors({ enabled: idleEnabled });
+  const { vignette, isBored, registerActivity } = useIdleBehaviors({ enabled: idleEnabled });
 
   // ============== CURSOR GAZE ==============
-  const brandeeWrapperRef = useRef(null);
-  const cursorGaze = useCursorGaze(brandeeWrapperRef, { radius: 360, maxOffset: 11 });
+  const avatarRef = useRef(null);
+  const cursorGaze = useCursorGaze(avatarRef, { radius: 360, maxOffset: 11 });
 
-  // Cursor near her also counts as activity (resets idle clock)
   useEffect(() => {
     if (cursorGaze.active) registerActivity();
   }, [cursorGaze.active, registerActivity]);
@@ -76,7 +72,7 @@ export default function App() {
     onWaveTrigger: triggerWave,
   });
 
-  // ============== LISTENING / BORED INTERPLAY ==============
+  // ============== STATE INTERPLAY ==============
   useEffect(() => {
     if (isLoading) return;
     if (input.length > 0) {
@@ -93,41 +89,27 @@ export default function App() {
     else if (agentState === 'bored' && !isBored) setAgentState('idle');
   }, [isBored, agentState]);
 
-  // Peek toward chat when there's an unread message
-  useEffect(() => {
-    if (!hasUnread || chatOpen || isLoading) return;
-    const t = setTimeout(() => peekChat(), 4000);
-    return () => clearTimeout(t);
-  }, [hasUnread, chatOpen, isLoading, peekChat]);
-
-  // ============== INTERACTION HANDLERS ==============
   const handlePoke = () => {
     registerActivity();
     dismissOnboarding();
   };
 
-  const handleOpenChat = () => {
-    setChatOpen(true);
-    setHasUnread(false);
-    registerActivity();
-    dismissOnboarding();
-  };
-
-  const handleCloseChat = () => setChatOpen(false);
-
-  // Keyboard shortcut Cmd/Ctrl+K to toggle chat
+  // Cmd/Ctrl+K focuses the chat input
   useEffect(() => {
     const onKey = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        if (chatOpen) handleCloseChat();
-        else handleOpenChat();
+        const input = document.querySelector('textarea.input');
+        if (input) {
+          input.focus();
+          dismissOnboarding();
+        }
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatOpen]);
+  }, []);
 
   // ============== CHAT FLOW (streaming) ==============
   const sendMessage = async () => {
@@ -145,7 +127,6 @@ export default function App() {
     setAgentState('thinking');
     setAgentMood('thinking');
 
-    // Add an empty assistant message that we'll fill as the stream arrives
     setMessages((prev) => [...prev, { role: 'assistant', content: '', typing: true }]);
 
     let receivedAnyText = false;
@@ -179,7 +160,6 @@ export default function App() {
         setAgentState('idle');
         setTimeout(() => setAgentMood('neutral'), 4000);
       }, 600);
-      if (!chatOpen) setHasUnread(true);
     };
 
     try {
@@ -196,7 +176,6 @@ export default function App() {
         throw new Error(data.error || `Request failed (${response.status})`);
       }
 
-      // Parse SSE
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
@@ -206,7 +185,6 @@ export default function App() {
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
 
-        // Split on event boundaries (double newline)
         const events = buffer.split('\n\n');
         buffer = events.pop() || '';
 
@@ -246,7 +224,6 @@ export default function App() {
       setError(e.message || 'Something went wrong.');
       setAgentState('error');
       setAgentMood('confused');
-      // Remove the empty assistant placeholder
       setMessages((prev) => {
         const copy = [...prev];
         if (copy.length && copy[copy.length - 1].role === 'assistant' && !copy[copy.length - 1].content) {
@@ -262,46 +239,67 @@ export default function App() {
     }
   };
 
-  const triggerCelebration = () => {
-    registerActivity();
-    setAgentState('celebrating');
-    setAgentMood('excited');
-    setTimeout(() => {
-      setAgentState('idle');
-      setAgentMood('neutral');
-    }, 2400);
-  };
-
   return (
-    <>
-      <AppShell
-        ref={brandeeWrapperRef}
-        brandeeState={agentState}
-        brandeeMood={agentMood}
-        vignette={vignette}
-        cursorGaze={cursorGaze}
-        onPokeBrandee={handlePoke}
-        onOpenChat={handleOpenChat}
-        onOpenSettings={() => setSettingsOpen(true)}
-        hasUnread={hasUnread}
-        brandeeName={settings.name || 'Brandee'}
-        showOnboarding={showOnboarding}
-        onDismissOnboarding={dismissOnboarding}
-      >
-        <MockDashboard onCelebrate={triggerCelebration} />
-      </AppShell>
+    <div className="app-root">
+      <div className="grain" />
 
-      <ChatPanel
-        open={chatOpen}
-        onClose={handleCloseChat}
-        messages={messages}
-        input={input}
-        setInput={setInput}
-        onSend={sendMessage}
-        isLoading={isLoading}
-        error={error}
-        brandeeName={settings.name || 'Brandee'}
-      />
+      <header className="app-header">
+        <div className="brand-mark">
+          <span className="brand-dot" />
+          <span className="brand-name serif">{settings.name || 'Brandee'}</span>
+        </div>
+        <div className="header-right">
+          <span className="header-tagline">BRAND &amp; CREATIVE COMPANION</span>
+          <button
+            className="settings-btn"
+            onClick={() => setSettingsOpen((v) => !v)}
+            aria-label="Settings"
+            aria-expanded={settingsOpen}
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
+              <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" fill="none" />
+              <path
+                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <main className="app-main">
+        <BrandeeStage
+          ref={avatarRef}
+          state={agentState}
+          mood={agentMood}
+          vignette={vignette}
+          cursorGaze={cursorGaze}
+          onPoke={handlePoke}
+          brandeeName={settings.name || 'Brandee'}
+          hasMessages={messages.length > 0}
+        />
+
+        <ChatColumn
+          messages={messages}
+          input={input}
+          setInput={setInput}
+          onSend={sendMessage}
+          isLoading={isLoading}
+          error={error}
+          brandeeName={settings.name || 'Brandee'}
+          showOnboarding={showOnboarding}
+          onDismissOnboarding={dismissOnboarding}
+        />
+      </main>
+
+      {/* Onboarding pointer — points at the chat input */}
+      {showOnboarding && (
+        <OnboardingPointer visible={showOnboarding} onDismiss={dismissOnboarding} />
+      )}
 
       <SettingsPanel
         open={settingsOpen}
@@ -309,6 +307,6 @@ export default function App() {
         settings={settings}
         onChange={setSettings}
       />
-    </>
+    </div>
   );
 }
