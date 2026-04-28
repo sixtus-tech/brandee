@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import BrandeeStage from './components/BrandeeStage.jsx';
 import ChatColumn from './components/ChatColumn.jsx';
+import VoiceMode from './components/VoiceMode.jsx';
 import SettingsPanel, { COLOR_OPTIONS } from './components/SettingsPanel.jsx';
 import { OnboardingPointer } from './hooks/useOnboarding.jsx';
 import useIdleBehaviors from './hooks/useIdleBehaviors.js';
@@ -17,6 +18,7 @@ const DEFAULT_SETTINGS = {
   idleEnabled: true,
   reduceMotion: false,
   voiceEnabled: true,
+  autoListen: true, // in voice mode, auto-arm the mic after she finishes speaking
 };
 
 export default function App() {
@@ -29,6 +31,9 @@ export default function App() {
     return DEFAULT_SETTINGS;
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Mode: 'text' | 'voice'. Lives in state (not settings) so it doesn't persist across sessions —
+  // voice mode is intentional, not a default.
+  const [mode, setMode] = useState('text');
 
   // Persist + apply theme
   useEffect(() => {
@@ -71,18 +76,33 @@ export default function App() {
 
   // ============== VOICE (TTS + STT) ==============
   const tts = useTextToSpeech();
+
+  // Ref so the STT onFinal callback can read the current mode without re-creating
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  const sendVoiceRef = useRef(null);
+
   const stt = useSpeechRecognition({
     onFinal: (text) => {
-      // When recognition completes, populate the input. The user can edit
-      // before sending, or just hit send. We don't auto-send so they have control.
-      setInput(text);
-      // Refocus input so they can edit / hit enter
-      setTimeout(() => {
-        const el = document.querySelector('textarea.input');
-        el?.focus();
-      }, 50);
+      if (modeRef.current === 'voice') {
+        // In voice mode, dispatch directly through to sendMessage
+        sendVoiceRef.current?.(text);
+      } else {
+        // Text mode: populate the input so the user can edit before sending
+        setInput(text);
+        setTimeout(() => {
+          const el = document.querySelector('textarea.input');
+          el?.focus();
+        }, 50);
+      }
     },
   });
+
+  // Bind the voice-send dispatch (after sendMessage is defined below, so we use a ref)
+  // We do this in an effect to avoid stale closures
+  useEffect(() => {
+    sendVoiceRef.current = (text) => sendMessage(text);
+  }); // run every render — sendMessage may close over latest state
 
   // When mic is recording, treat as listening and pause idle
   useEffect(() => {
@@ -257,9 +277,11 @@ export default function App() {
   }, []);
 
   // ============== CHAT FLOW (streaming) ==============
-  const sendMessage = async () => {
-    const trimmed = input.trim();
-    const hasImage = !!pendingImage;
+  // Accepts optional textOverride (used by voice mode to send transcribed speech
+  // without going through the input state, which would race with React batching).
+  const sendMessage = async (textOverride) => {
+    const trimmed = (textOverride ?? input).trim();
+    const hasImage = !!pendingImage && textOverride === undefined;
     if ((!trimmed && !hasImage) || isLoading) return;
 
     setError(null);
@@ -346,12 +368,13 @@ export default function App() {
       });
       setIsLoading(false);
 
-      // Voice playback
-      if (settings.voiceEnabled && tts.isAvailable && finalText) {
-        // Keep her in the speaking state during audio playback
-        // The TTS hook will drive amplitude into the avatar
+      // Voice playback — always speak in voice mode; respect setting in text mode
+      const shouldSpeak =
+        (mode === 'voice' || settings.voiceEnabled) &&
+        tts.isAvailable &&
+        finalText;
+      if (shouldSpeak) {
         tts.speak(finalText).catch(() => {});
-        // We'll let the audio onended event cycle her back to idle
       } else {
         setTimeout(() => {
           setAgentState('idle');
@@ -438,39 +461,103 @@ export default function App() {
     }
   };
 
+  // Helpers for VoiceMode
+  const lastUserText = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'user') return messages[i].content;
+    }
+    return '';
+  }, [messages]);
+  const lastAssistantText = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'assistant' && !messages[i].typing) return messages[i].content;
+    }
+    return '';
+  }, [messages]);
+
   return (
     <div className="app-root">
       <div className="grain" />
 
-      <header className="app-header">
-        <div className="brand-mark">
-          <span className="brand-dot" />
-          <span className="brand-name serif">{settings.name || 'Brandee'}</span>
-        </div>
-        <div className="header-right">
-          <span className="header-tagline">BRAND &amp; CREATIVE COMPANION</span>
-          <button
-            className="settings-btn"
-            onClick={() => setSettingsOpen((v) => !v)}
-            aria-label="Settings"
-            aria-expanded={settingsOpen}
-          >
-            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
-              <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" fill="none" />
-              <path
-                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                fill="none"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
-        </div>
-      </header>
+      {mode === 'voice' ? (
+        <VoiceMode
+          ref={avatarRef}
+          state={agentState}
+          mood={agentMood}
+          vignette={vignette}
+          cursorGaze={cursorGaze}
+          audioAmplitude={tts.amplitude}
+          brandeeName={settings.name || 'Brandee'}
+          onExit={() => {
+            tts.stop();
+            stt.stop();
+            setMode('text');
+          }}
+          onSendVoiceMessage={(text) => sendMessage(text)}
+          onInterrupt={() => tts.stop()}
+          isLoading={isLoading}
+          ttsSpeaking={tts.isSpeaking}
+          ttsAvailable={tts.isAvailable}
+          stt={stt}
+          autoListen={settings.autoListen}
+          lastUserText={lastUserText}
+          lastAssistantText={lastAssistantText}
+          error={error}
+          roastMode={roastMode}
+          onToggleRoast={() => setRoastMode((v) => !v)}
+        />
+      ) : (
+        <>
+          <header className="app-header">
+            <div className="brand-mark">
+              <span className="brand-dot" />
+              <span className="brand-name serif">{settings.name || 'Brandee'}</span>
+            </div>
+            <div className="header-right">
+              <span className="header-tagline">BRAND &amp; CREATIVE COMPANION</span>
 
-      <main className="app-main">
+              {/* Voice/Text mode toggle — only show if voice is even possible */}
+              {(tts.isAvailable || stt.isSupported) && (
+                <button
+                  type="button"
+                  className="mode-switch"
+                  onClick={() => setMode('voice')}
+                  aria-label="Enter voice mode"
+                  title="Talk to her instead"
+                >
+                  <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden>
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" fill="currentColor" />
+                    <path
+                      d="M19 10v2a7 7 0 0 1-14 0v-2"
+                      stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round"
+                    />
+                  </svg>
+                  <span>Voice mode</span>
+                </button>
+              )}
+
+              <button
+                className="settings-btn"
+                onClick={() => setSettingsOpen((v) => !v)}
+                aria-label="Settings"
+                aria-expanded={settingsOpen}
+              >
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
+                  <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" fill="none" />
+                  <path
+                    d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+            </div>
+          </header>
+
+          <main className="app-main">
         <BrandeeStage
           ref={avatarRef}
           state={agentState}
@@ -525,6 +612,8 @@ export default function App() {
       {/* Onboarding pointer — points at the chat input */}
       {showOnboarding && (
         <OnboardingPointer visible={showOnboarding} onDismiss={dismissOnboarding} />
+      )}
+        </>
       )}
 
       <SettingsPanel
