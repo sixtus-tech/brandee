@@ -96,23 +96,6 @@ export default function SettingsPanel({
         <label className="settings-toggle">
           <input
             type="checkbox"
-            checked={settings.voiceEnabled}
-            onChange={(e) => onChange({ ...settings, voiceEnabled: e.target.checked })}
-          />
-          <span className="toggle-track" aria-hidden>
-            <span className="toggle-thumb" />
-          </span>
-          <span className="toggle-label">
-            <span>Voice</span>
-            <span className="settings-hint">Talk to her, hear her speak. Audio routed via your server.</span>
-          </span>
-        </label>
-      </div>
-
-      <div className="settings-section">
-        <label className="settings-toggle">
-          <input
-            type="checkbox"
             checked={settings.idleEnabled}
             onChange={(e) => onChange({ ...settings, idleEnabled: e.target.checked })}
           />

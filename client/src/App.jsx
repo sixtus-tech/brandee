@@ -17,7 +17,6 @@ const DEFAULT_SETTINGS = {
   color: 'Peach',
   idleEnabled: true,
   reduceMotion: false,
-  voiceEnabled: true,
   autoListen: true, // in voice mode, auto-arm the mic after she finishes speaking
 };
 
@@ -111,11 +110,6 @@ export default function App() {
       registerActivity();
     }
   }, [stt.isListening, registerActivity]);
-
-  // Stop TTS playback if user starts a new request or toggles voice off
-  useEffect(() => {
-    if (!settings.voiceEnabled && tts.isSpeaking) tts.stop();
-  }, [settings.voiceEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // When TTS playback finishes, ease Brandee back to idle
   const wasSpeakingRef = useRef(false);
@@ -371,9 +365,9 @@ export default function App() {
       });
       setIsLoading(false);
 
-      // Voice playback — always speak in voice mode; respect setting in text mode
+      // Voice playback — only in voice mode. Text mode is silent.
       const shouldSpeak =
-        (mode === 'voice' || settings.voiceEnabled) &&
+        mode === 'voice' &&
         tts.isAvailable &&
         finalText;
       if (shouldSpeak) {
@@ -589,7 +583,7 @@ export default function App() {
           pendingImage={pendingImage}
           onClearPendingImage={() => setPendingImage(null)}
           onPickFile={stageFile}
-          voiceEnabled={settings.voiceEnabled}
+          voiceEnabled={true}
           ttsAvailable={tts.isAvailable}
           ttsSpeaking={tts.isSpeaking}
           onStopSpeaking={tts.stop}
