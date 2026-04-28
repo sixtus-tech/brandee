@@ -273,9 +273,12 @@ export default function App() {
   // ============== CHAT FLOW (streaming) ==============
   // Accepts optional textOverride (used by voice mode to send transcribed speech
   // without going through the input state, which would race with React batching).
+  // When called from a button click, React passes the event as the first arg —
+  // we must ignore that and only treat string values as the override.
   const sendMessage = async (textOverride) => {
-    const trimmed = (textOverride ?? input).trim();
-    const hasImage = !!pendingImage && textOverride === undefined;
+    const overrideStr = typeof textOverride === 'string' ? textOverride : null;
+    const trimmed = (overrideStr ?? input).trim();
+    const hasImage = !!pendingImage && overrideStr === null;
     if ((!trimmed && !hasImage) || isLoading) return;
 
     setError(null);
