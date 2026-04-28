@@ -1,35 +1,35 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
 /**
- * useTextToSpeech — fetches an MP3 from /api/tts and plays it.
+ * useTextToSpeech (v5.3 — simplified, bulletproof)
  *
- * AUDIO GRAPH (key fix in v5.1):
- *   source ──► destination   (direct — audio ALWAYS plays)
- *   source ──► analyser      (parallel tap — for amplitude only, no destination)
+ * After painful debugging in Safari + Chrome, dropped the Web Audio API path
+ * entirely. It was breaking after the first playback in Chrome (AudioContext
+ * state issues) and never working in Safari (autoplay policy).
  *
- * The previous version chained them in series (source → analyser → destination),
- * which meant any hiccup in the analyser chain killed audio output. The new
- * version separates the two: audio playback is independent of the analyser.
+ * This version uses ONLY the plain HTML <audio> element. Trade-off: no
+ * audio-amplitude-driven lip sync (the mouth-speaking keyframe animation
+ * still runs as a fallback, so her mouth still moves while she talks —
+ * just not synced to the actual audio waveform).
  *
- * Returns:
- *   { speak, stop, isLoading, isSpeaking, amplitude, isAvailable, error }
+ * Returns: { speak, stop, isLoading, isSpeaking, amplitude, isAvailable, error, unlock }
  */
 export default function useTextToSpeech() {
   const [isAvailable, setIsAvailable] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [amplitude, setAmplitude] = useState(0);
   const [error, setError] = useState(null);
 
-  const audioCtxRef = useRef(null);
-  const analyserRef = useRef(null);
-  const sourceNodeRef = useRef(null);
-  const audioElRef = useRef(null);
-  const rafRef = useRef(0);
-  const currentUrlRef = useRef(null);
-  const abortRef = useRef(null);
+  // amplitude is always 0 in this version — Mouth component falls back to
+  // its keyframe-based talk animation, which still looks fine.
+  const amplitude = 0;
 
-  // Check server config at mount
+  const audioRef = useRef(null);
+  const urlRef = useRef(null);
+  const abortRef = useRef(null);
+  const unlockedRef = useRef(false);
+
+  // ============== SERVER CONFIG ==============
   useEffect(() => {
     let cancelled = false;
     fetch('/api/voice/config')
@@ -39,76 +39,80 @@ export default function useTextToSpeech() {
     return () => { cancelled = true; };
   }, []);
 
-  // Set up audio context + analyser lazily (only after a user gesture)
-  const ensureAudio = useCallback(() => {
-    if (audioCtxRef.current) return;
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return;
+  // ============== AUDIO UNLOCK ==============
+  // Plays a 1-sample silent WAV during the first user gesture to grant
+  // permission for subsequent audio playback (Chrome autoplay policy).
+  const unlock = useCallback(() => {
+    if (unlockedRef.current) return;
     try {
-      audioCtxRef.current = new Ctx();
-      const analyser = audioCtxRef.current.createAnalyser();
-      analyser.fftSize = 256;
-      analyser.smoothingTimeConstant = 0.4;
-      analyserRef.current = analyser;
-      // NOTE: we do NOT connect analyser to destination.
-      // Analyser is a passive observer — it gets data via parallel tap from the source.
-    } catch (e) {
-      console.warn('AudioContext init failed:', e?.message);
-    }
+      const SILENT_WAV = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+      const a = new Audio(SILENT_WAV);
+      a.volume = 0;
+      const promise = a.play();
+      if (promise && typeof promise.then === 'function') {
+        promise
+          .then(() => {
+            unlockedRef.current = true;
+            console.info('[TTS] audio unlocked');
+          })
+          .catch(() => {
+            // Some browsers reject when play() is called outside a gesture context;
+            // we'll try again on the next gesture.
+          });
+      } else {
+        unlockedRef.current = true;
+      }
+    } catch {}
   }, []);
 
-  const cleanupSource = () => {
-    if (sourceNodeRef.current) {
-      try { sourceNodeRef.current.disconnect(); } catch {}
-      sourceNodeRef.current = null;
-    }
-    if (audioElRef.current) {
-      try {
-        audioElRef.current.pause();
-        audioElRef.current.src = '';
-        audioElRef.current.load();
-      } catch {}
-      audioElRef.current = null;
-    }
-    if (currentUrlRef.current) {
-      try { URL.revokeObjectURL(currentUrlRef.current); } catch {}
-      currentUrlRef.current = null;
-    }
-    if (rafRef.current) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = 0;
-    }
-    setAmplitude(0);
-  };
+  // Auto-unlock on first user gesture anywhere on the page
+  useEffect(() => {
+    const onGesture = () => {
+      if (unlockedRef.current) return;
+      unlock();
+    };
+    window.addEventListener('pointerdown', onGesture, { capture: true });
+    window.addEventListener('keydown', onGesture, { capture: true });
+    window.addEventListener('touchstart', onGesture, { capture: true });
+    return () => {
+      window.removeEventListener('pointerdown', onGesture, { capture: true });
+      window.removeEventListener('keydown', onGesture, { capture: true });
+      window.removeEventListener('touchstart', onGesture, { capture: true });
+    };
+  }, [unlock]);
 
+  // ============== STOP / CLEANUP ==============
   const stop = useCallback(() => {
     if (abortRef.current) {
       try { abortRef.current.abort(); } catch {}
       abortRef.current = null;
     }
-    cleanupSource();
+    if (audioRef.current) {
+      try {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+        audioRef.current.load();
+      } catch {}
+      audioRef.current = null;
+    }
+    if (urlRef.current) {
+      try { URL.revokeObjectURL(urlRef.current); } catch {}
+      urlRef.current = null;
+    }
     setIsSpeaking(false);
     setIsLoading(false);
   }, []);
 
+  // ============== SPEAK ==============
   const speak = useCallback(async (text) => {
     if (!text || !text.trim()) return;
     if (!isAvailable) {
+      console.warn('[TTS] not available — server has no ELEVENLABS_API_KEY');
       setError('Voice not enabled on server');
       return;
     }
 
-    // Cancel any in-flight or playing audio first
     stop();
-    ensureAudio();
-
-    // Resume audio context if suspended (browser power saving)
-    if (audioCtxRef.current?.state === 'suspended') {
-      try { await audioCtxRef.current.resume(); } catch (e) {
-        console.warn('AudioContext resume failed:', e?.message);
-      }
-    }
-
     setError(null);
     setIsLoading(true);
 
@@ -116,6 +120,7 @@ export default function useTextToSpeech() {
     abortRef.current = ctrl;
 
     try {
+      console.info('[TTS] fetching audio for', text.length, 'chars');
       const res = await fetch('/api/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -132,91 +137,62 @@ export default function useTextToSpeech() {
       if (!blob || blob.size === 0) {
         throw new Error('Empty audio response');
       }
+      console.info('[TTS] got', blob.size, 'bytes');
+
       const url = URL.createObjectURL(blob);
-      currentUrlRef.current = url;
+      urlRef.current = url;
 
       const audio = new Audio();
-      audioElRef.current = audio;
       audio.src = url;
       audio.preload = 'auto';
-
-      // ============ AUDIO GRAPH SETUP (parallel branches) ============
-      // Try to wire source into Web Audio for amplitude analysis,
-      // but if anything fails, fall back to plain audio element playback
-      // (which routes through default output without our intervention).
-      let usingWebAudio = false;
-      if (audioCtxRef.current && analyserRef.current) {
-        try {
-          const source = audioCtxRef.current.createMediaElementSource(audio);
-          // CRITICAL: connect source DIRECTLY to destination so audio plays
-          source.connect(audioCtxRef.current.destination);
-          // ALSO connect to analyser as a parallel tap for amplitude (no destination link)
-          source.connect(analyserRef.current);
-          sourceNodeRef.current = source;
-          usingWebAudio = true;
-        } catch (e) {
-          // MediaElementSource failed (rare). Audio element will play through
-          // default routing. We just lose lip sync for this play.
-          console.warn('Audio graph fallback (no lip sync this turn):', e?.message);
-          sourceNodeRef.current = null;
-        }
-      }
-      // ================================================================
+      audioRef.current = audio;
 
       audio.onplay = () => {
+        console.info('[TTS] playing');
         setIsLoading(false);
         setIsSpeaking(true);
-        // Start amplitude polling only if analyser is wired up
-        if (usingWebAudio && analyserRef.current) {
-          const buf = new Uint8Array(analyserRef.current.frequencyBinCount);
-          const tick = () => {
-            if (!audioElRef.current || audioElRef.current.paused) return;
-            analyserRef.current.getByteTimeDomainData(buf);
-            let sum = 0;
-            for (let i = 0; i < buf.length; i++) {
-              const v = (buf[i] - 128) / 128;
-              sum += v * v;
-            }
-            const rms = Math.sqrt(sum / buf.length);
-            const mapped = Math.min(1, Math.max(0, (rms - 0.02) * 3));
-            setAmplitude(mapped);
-            rafRef.current = requestAnimationFrame(tick);
-          };
-          rafRef.current = requestAnimationFrame(tick);
-        }
       };
       audio.onended = () => {
+        console.info('[TTS] ended naturally');
         setIsSpeaking(false);
-        setAmplitude(0);
-        if (rafRef.current) {
-          cancelAnimationFrame(rafRef.current);
-          rafRef.current = 0;
+        if (urlRef.current === url) {
+          try { URL.revokeObjectURL(url); } catch {}
+          urlRef.current = null;
         }
+        if (audioRef.current === audio) audioRef.current = null;
       };
-      audio.onerror = (e) => {
-        console.error('Audio element error:', audio.error?.message || e);
+      audio.onerror = () => {
+        const err = audio.error;
+        const code = err?.code;
+        const msg = err?.message || 'unknown';
+        const codeName =
+          code === 1 ? 'MEDIA_ERR_ABORTED' :
+          code === 2 ? 'MEDIA_ERR_NETWORK' :
+          code === 3 ? 'MEDIA_ERR_DECODE' :
+          code === 4 ? 'MEDIA_ERR_SRC_NOT_SUPPORTED' :
+          'MEDIA_ERR_UNKNOWN';
+        console.error(`[TTS] audio error: ${codeName} —`, msg);
+        setError(`Audio playback failed (${codeName})`);
         setIsSpeaking(false);
         setIsLoading(false);
-        setError('Audio playback failed');
       };
 
-      // Try to play. If autoplay is blocked, this rejects.
       try {
         await audio.play();
       } catch (playErr) {
-        console.error('audio.play() rejected:', playErr?.message);
+        console.error('[TTS] audio.play() rejected:', playErr?.name, playErr?.message);
         setError(`Couldn't play audio: ${playErr?.message || 'autoplay blocked'}`);
         setIsLoading(false);
         setIsSpeaking(false);
       }
     } catch (e) {
       if (e.name === 'AbortError') return;
-      console.error('TTS error:', e);
+      console.error('[TTS] fetch/decode error:', e);
       setError(e.message || 'TTS failed');
       setIsLoading(false);
       setIsSpeaking(false);
     }
-  }, [isAvailable, ensureAudio, stop]);
+  }, [isAvailable, stop]);
 
   // Cleanup on unmount
   useEffect(() => () => stop(), [stop]);
@@ -224,6 +200,7 @@ export default function useTextToSpeech() {
   return {
     speak,
     stop,
+    unlock,
     isLoading,
     isSpeaking,
     amplitude,
