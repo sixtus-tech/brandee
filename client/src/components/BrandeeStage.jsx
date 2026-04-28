@@ -15,6 +15,7 @@ const BrandeeStage = forwardRef(function BrandeeStage({
   onPoke,
   brandeeName = 'Brandee',
   hasMessages = false,
+  roastMode = false,
 }, avatarRef) {
   return (
     <section className="brandee-stage-column" aria-label={`${brandeeName}, your AI desk assistant`}>
@@ -32,17 +33,23 @@ const BrandeeStage = forwardRef(function BrandeeStage({
         />
       </div>
 
-      <div className="status-pill" aria-hidden>
+      <div className={`status-pill ${roastMode ? 'roast' : ''}`} aria-hidden>
         <span className="status-dot" />
-        <span className="status-label">{statusLabel(state, vignette, mood)}</span>
+        <span className="status-label">
+          {roastMode && state === 'idle' ? 'HONEST MODE' : statusLabel(state, vignette, mood)}
+        </span>
       </div>
 
       <div className={`welcome-text ${hasMessages ? 'fade' : ''}`}>
         <h1 className="welcome-headline">
-          <span className="serif">Hi, I'm {brandeeName}.</span>
+          <span className="serif">
+            {roastMode ? `Hi, I'm ${brandeeName}.` : `Hi, I'm ${brandeeName}.`}
+          </span>
         </h1>
         <p className="welcome-sub">
-          Naming, positioning, copy, taste calls. Throw something at me.
+          {roastMode
+            ? "Honest mode is on. I'll say what I actually think — drop something."
+            : 'Naming, positioning, copy, taste calls. Throw something at me.'}
         </p>
       </div>
     </section>

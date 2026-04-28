@@ -43,6 +43,9 @@ export default function App() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [roastMode, setRoastMode] = useState(false);
+  const [pendingImage, setPendingImage] = useState(null); // { dataUrl, mediaType, name, base64 }
+  const [isDragging, setIsDragging] = useState(false);
 
   // ============== AVATAR STATE ==============
   const [agentState, setAgentState] = useState('idle');
@@ -75,24 +78,118 @@ export default function App() {
   // ============== STATE INTERPLAY ==============
   useEffect(() => {
     if (isLoading) return;
-    if (input.length > 0) {
+    if (input.length > 0 || pendingImage) {
       setAgentState('listening');
       registerActivity();
     } else if (agentState === 'listening') {
       setAgentState('idle');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [input, isLoading]);
+  }, [input, isLoading, pendingImage]);
 
   useEffect(() => {
     if (agentState === 'idle' && isBored) setAgentState('bored');
     else if (agentState === 'bored' && !isBored) setAgentState('idle');
   }, [isBored, agentState]);
 
+  // When roast mode toggles, swap the baseline mood and reset the avatar
+  useEffect(() => {
+    if (isLoading) return;
+    setAgentMood(roastMode ? 'skeptical' : 'neutral');
+  }, [roastMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handlePoke = () => {
     registerActivity();
     dismissOnboarding();
   };
+
+  // ============== IMAGE INTAKE (drag/drop + paste) ==============
+  const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+  const MAX_BYTES = 5 * 1024 * 1024;
+
+  const stageFile = useCallback((file) => {
+    if (!file) return;
+    if (!ACCEPTED_TYPES.includes(file.type)) {
+      setError(`Brandee can only look at JPG, PNG, WebP, or GIF.`);
+      return;
+    }
+    if (file.size > MAX_BYTES) {
+      setError(`That image is too big — keep it under 5MB.`);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      const base64 = dataUrl.split(',')[1] || '';
+      setPendingImage({
+        dataUrl,
+        mediaType: file.type,
+        name: file.name || 'image',
+        base64,
+      });
+      setError(null);
+      registerActivity();
+      dismissOnboarding();
+    };
+    reader.readAsDataURL(file);
+  }, [registerActivity, dismissOnboarding]);
+
+  // Window-level drag tracking (so the drop overlay shows for the whole app)
+  useEffect(() => {
+    let dragDepth = 0;
+    const onDragEnter = (e) => {
+      if (!e.dataTransfer || !Array.from(e.dataTransfer.types || []).includes('Files')) return;
+      dragDepth++;
+      setIsDragging(true);
+    };
+    const onDragLeave = () => {
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (dragDepth === 0) setIsDragging(false);
+    };
+    const onDragOver = (e) => {
+      if (e.dataTransfer?.types?.includes?.('Files')) {
+        e.preventDefault();
+      }
+    };
+    const onDrop = (e) => {
+      if (!e.dataTransfer?.files?.length) return;
+      e.preventDefault();
+      dragDepth = 0;
+      setIsDragging(false);
+      const file = Array.from(e.dataTransfer.files).find((f) => f.type.startsWith('image/'));
+      if (file) stageFile(file);
+    };
+    window.addEventListener('dragenter', onDragEnter);
+    window.addEventListener('dragleave', onDragLeave);
+    window.addEventListener('dragover', onDragOver);
+    window.addEventListener('drop', onDrop);
+    return () => {
+      window.removeEventListener('dragenter', onDragEnter);
+      window.removeEventListener('dragleave', onDragLeave);
+      window.removeEventListener('dragover', onDragOver);
+      window.removeEventListener('drop', onDrop);
+    };
+  }, [stageFile]);
+
+  // Paste handler (Cmd/Ctrl+V with image in clipboard)
+  useEffect(() => {
+    const onPaste = (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            e.preventDefault();
+            stageFile(file);
+            return;
+          }
+        }
+      }
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, [stageFile]);
 
   // Cmd/Ctrl+K focuses the chat input
   useEffect(() => {
@@ -114,18 +211,59 @@ export default function App() {
   // ============== CHAT FLOW (streaming) ==============
   const sendMessage = async () => {
     const trimmed = input.trim();
-    if (!trimmed || isLoading) return;
+    const hasImage = !!pendingImage;
+    if ((!trimmed && !hasImage) || isLoading) return;
 
     setError(null);
     registerActivity();
     dismissOnboarding();
-    const userMsg = { role: 'user', content: trimmed };
-    const newMessages = [...messages, userMsg];
-    setMessages(newMessages);
+
+    // Build the user message content shape
+    let userContent;
+    let userMessageDisplay; // what to show in the chat history (image preview + text)
+    if (hasImage) {
+      const blocks = [
+        {
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: pendingImage.mediaType,
+            data: pendingImage.base64,
+          },
+        },
+      ];
+      if (trimmed) blocks.push({ type: 'text', text: trimmed });
+      else blocks.push({ type: 'text', text: 'What do you think?' });
+      userContent = blocks;
+      userMessageDisplay = {
+        role: 'user',
+        content: trimmed || 'What do you think?',
+        imageDataUrl: pendingImage.dataUrl,
+      };
+    } else {
+      userContent = trimmed;
+      userMessageDisplay = { role: 'user', content: trimmed };
+    }
+
+    // Append user message to display history
+    const newDisplayMessages = [...messages, userMessageDisplay];
+    setMessages(newDisplayMessages);
+
+    // Build the API messages — past messages we send as text-only since the
+    // image content from earlier turns is already represented by Brandee's response.
+    // For the *current* turn we send the full content (with image if present).
+    const apiMessages = newDisplayMessages.map((m, i) => {
+      if (i === newDisplayMessages.length - 1 && Array.isArray(userContent)) {
+        return { role: 'user', content: userContent };
+      }
+      return { role: m.role, content: m.content };
+    });
+
     setInput('');
+    setPendingImage(null);
     setIsLoading(true);
     setAgentState('thinking');
-    setAgentMood('thinking');
+    setAgentMood(roastMode ? 'skeptical' : 'thinking');
 
     setMessages((prev) => [...prev, { role: 'assistant', content: '', typing: true }]);
 
@@ -158,7 +296,7 @@ export default function App() {
       setIsLoading(false);
       setTimeout(() => {
         setAgentState('idle');
-        setTimeout(() => setAgentMood('neutral'), 4000);
+        setTimeout(() => setAgentMood(roastMode ? 'skeptical' : 'neutral'), 4000);
       }, 600);
     };
 
@@ -167,7 +305,8 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
+          messages: apiMessages,
+          mode: roastMode ? 'roast' : 'default',
         }),
       });
 
@@ -233,7 +372,7 @@ export default function App() {
       });
       setTimeout(() => {
         setAgentState('idle');
-        setAgentMood('neutral');
+        setAgentMood(roastMode ? 'skeptical' : 'neutral');
       }, 3000);
       setIsLoading(false);
     }
@@ -281,6 +420,7 @@ export default function App() {
           onPoke={handlePoke}
           brandeeName={settings.name || 'Brandee'}
           hasMessages={messages.length > 0}
+          roastMode={roastMode}
         />
 
         <ChatColumn
@@ -293,8 +433,24 @@ export default function App() {
           brandeeName={settings.name || 'Brandee'}
           showOnboarding={showOnboarding}
           onDismissOnboarding={dismissOnboarding}
+          roastMode={roastMode}
+          onToggleRoast={() => setRoastMode((v) => !v)}
+          pendingImage={pendingImage}
+          onClearPendingImage={() => setPendingImage(null)}
+          onPickFile={stageFile}
         />
       </main>
+
+      {/* Drag-over overlay */}
+      {isDragging && (
+        <div className="drop-overlay" aria-hidden>
+          <div className="drop-card">
+            <div className="drop-icon">↓</div>
+            <div className="drop-title serif">Drop it here</div>
+            <div className="drop-sub">Brandee will take a look.</div>
+          </div>
+        </div>
+      )}
 
       {/* Onboarding pointer — points at the chat input */}
       {showOnboarding && (

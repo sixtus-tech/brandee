@@ -1254,3 +1254,220 @@ button:focus-visible,
     width: auto;
   }
 }
+
+/* ============== ROAST MODE TOGGLE ============== */
+.mode-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 4px;
+}
+
+.mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 10px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: all 0.18s;
+  letter-spacing: 0.02em;
+}
+.mode-toggle:hover {
+  background: var(--surface);
+  color: var(--ink);
+}
+.mode-toggle .mode-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-faint);
+  transition: all 0.18s;
+}
+.mode-toggle.on {
+  background: var(--ink);
+  color: var(--surface);
+  border-color: var(--ink);
+  box-shadow: 0 1px 8px rgba(199, 93, 63, 0.25);
+}
+.mode-toggle.on .mode-dot {
+  background: #E85A4F;
+  box-shadow: 0 0 0 2px rgba(232, 90, 79, 0.25);
+  animation: roast-pulse 1.6s ease-in-out infinite;
+}
+@keyframes roast-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(232, 90, 79, 0.25); }
+  50% { box-shadow: 0 0 0 5px rgba(232, 90, 79, 0); }
+}
+
+.roast-helper {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 12px;
+  color: var(--accent-hot);
+  animation: msg-in 0.3s ease-out;
+}
+
+/* Status pill in roast mode */
+.status-pill.roast {
+  background: rgba(232, 90, 79, 0.10);
+  border-color: rgba(232, 90, 79, 0.3);
+  color: var(--accent-hot);
+}
+.status-pill.roast .status-dot {
+  background: #E85A4F;
+}
+
+/* Subtle vibe shift in roast mode — tighter, slightly cooler */
+.chat-bottom.roast-active .input-bar {
+  border-color: rgba(232, 90, 79, 0.35);
+}
+
+/* ============== IMAGE ATTACH UX ============== */
+.attach-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink-faint);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.attach-btn:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--bg-deep);
+}
+.attach-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.image-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 8px 8px 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  margin: 0 4px;
+  animation: msg-in 0.25s ease-out;
+}
+.image-preview img {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 10px;
+  flex-shrink: 0;
+  background: var(--bg-deep);
+}
+.image-preview-meta {
+  flex: 1;
+  min-width: 0;
+}
+.image-preview-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.image-preview-hint {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 12px;
+  color: var(--ink-faint);
+  margin-top: 2px;
+}
+.image-preview-remove {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: var(--ink-faint);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+.image-preview-remove:hover {
+  background: var(--bg-deep);
+  color: var(--ink);
+}
+
+/* Image inside a chat message bubble */
+.msg-image {
+  display: block;
+  max-width: 100%;
+  max-height: 240px;
+  border-radius: 12px;
+  margin-bottom: 8px;
+  object-fit: cover;
+}
+.msg-bubble .msg-image:last-child {
+  margin-bottom: 0;
+}
+
+/* ============== DROP OVERLAY ============== */
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(31, 26, 20, 0.45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  pointer-events: none;
+  animation: drop-overlay-in 0.18s ease-out;
+}
+@keyframes drop-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.drop-card {
+  background: var(--surface);
+  border: 2px dashed var(--accent);
+  border-radius: 24px;
+  padding: 36px 56px;
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+  animation: drop-card-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes drop-card-in {
+  from { transform: scale(0.85); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.drop-icon {
+  font-size: 48px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 8px;
+  animation: drop-arrow 1s ease-in-out infinite;
+}
+@keyframes drop-arrow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(6px); }
+}
+.drop-title {
+  font-size: 28px;
+  margin-bottom: 4px;
+  letter-spacing: -0.01em;
+}
+.drop-sub {
+  font-size: 13px;
+  color: var(--ink-soft);
+}

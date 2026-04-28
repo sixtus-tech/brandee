@@ -158,6 +158,10 @@ The brief said *"think Microsoft Clippy, but actually good."* That framing made 
 - Onboarding pointer points at the chat input area
 - Mobile: stacks vertically with Brandee on top, chat below
 
+**Viral features (v3.5):**
+- **Honest mode** ("Roast mode") — toggleable pill in the chat. Swaps Brandee's system prompt to an unfiltered version: still warm, still affectionate, but allowed to call out clichés, generic startup language, and weak ideas with specific, quotable feedback. The whole UI shifts when on: skeptical side-eye on the avatar, red status pill reading `HONEST MODE`, suggestion chips become roast-y, input placeholder changes to "Drop something for Brandee to roast…". This is the share-able moment — users will screenshot her takedowns for their group chats.
+- **Drag / paste / upload an image** — drop a logo, screenshot, mockup, or moodboard onto the app and Brandee will look at it and give a short opinionated take. Three intake methods: drag-and-drop (with a full-screen "Drop it here" overlay), paste from clipboard (Cmd/Ctrl+V), or click the attach icon in the input. Combine with honest mode for maximum effect — "rate my logo" is already a viral TikTok format. Server validates type (JPEG/PNG/WebP/GIF), size (5MB cap), and shape; the Anthropic API does the actual vision.
+
 ## What I'd still improve with more time
 
 1. **Voice output with lip-sync.** Drive the mouth animation off audio amplitude (Web Audio analyser node). ElevenLabs has a warm, slightly playful voice library that would fit her.
