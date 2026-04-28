@@ -1,8 +1,8 @@
 {
   "name": "brandee",
-  "version": "1.0.0",
+  "version": "2.5.0",
   "private": true,
-  "description": "Animated AI chat agent — candidate prototype",
+  "description": "Brandee — animated AI desk assistant",
   "scripts": {
     "install:all": "npm install && npm install --prefix server && npm install --prefix client",
     "dev": "concurrently -n server,client -c yellow,cyan \"npm run dev --prefix server\" \"npm run dev --prefix client\"",

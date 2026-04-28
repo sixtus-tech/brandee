@@ -1,108 +1,187 @@
-# Brandee, Animated AI Chat Agent
+# Brandee — Animated AI Desk Assistant
 
-A web app where you chat with **Brandee**, an animated AI brand & creative companion. 
+Brandee is a small, expressive character who lives in your sidebar. She's an AI brand & creative companion — but more importantly, she's a *desk assistant*: she has moods, idle behaviors, and a personality you actually notice. Think Clippy, if Clippy had taste, charm, and 25 years of design lessons.
 
+This is v2.5: the v1 chat prototype rebuilt as a character, then polished with the kinds of details that make her feel *present* — eyes that follow your cursor, an onboarding wave when she meets you for the first time, a settings panel where you can rename her or change her color, streaming responses so she speaks as she thinks, and real tests so the personality machinery doesn't regress.
 
+## Tech stack
 
-## Quick start
+**Frontend**
+- React 18 + Vite
+- Pure CSS with CSS variables (no Tailwind, no UI library)
+- SVG character with state-driven animations
+- Custom React hooks: `useIdleBehaviors` (vignette director), `useCursorGaze` (eye tracking), `useOnboarding` (first-run experience)
+- DM Sans + Fraunces (Google Fonts)
 
-You'll need Node.js 18+ and an Anthropic API key.
+**Backend**
+- Node.js + Express (ESM)
+- `@anthropic-ai/sdk` for AI calls
+- `express-rate-limit` for abuse protection
+- Mood-tag parser — extracts an emotion hint from each AI response so Brandee's face can react to *what she's saying*
+- Server-Sent Events (SSE) streaming endpoint at `/api/chat/stream`
+- API key stays server-side, never exposed to the browser
+
+**Tests**
+- Node's built-in test runner (no Vitest/Jest dependency)
+- 14 tests covering the mood parser and streaming extractor
+- Run with `npm test --prefix server`
+
+## Setup
 
 ```bash
-# 1. Install root, server,and client
 npm run install:all
-
-# 2. Set up the server's environment
-create .env file
-
-
-# 3. Run dev mode (starts server on :3001 and client on :5173)
+cp server/.env.example server/.env
+# add your key from https://console.anthropic.com/
 npm run dev
+```
 
+Open http://localhost:5173. Chat with her. Then leave the tab alone for 30 seconds and watch what happens.
 
-Open http://localhost:5173  and you should see Brandee.
+To run the tests: `cd server && npm test`
+
+## How the AI / chat works
+
+1. The user sends a message → React appends to local conversation state and POSTs to `/api/chat/stream`.
+2. Vite proxies `/api/*` to the Express server in dev. In production, Express serves both API and built client from one process.
+3. The server validates the payload (length caps, role shape, rate limit at 30 req/min) and forwards to the Anthropic API with Brandee's system prompt.
+4. **Brandee returns a mood tag with every response.** The system prompt tells her to prepend a JSON metadata line (`{"mood":"excited"}`) to every reply. The streaming extractor pulls it off as soon as it's identified, hides it from the user, and emits an SSE `mood` event before any text chunks. This means her face changes *before* she starts talking.
+5. **Streaming.** Server forwards Anthropic's text deltas as SSE `chunk` events. The client appends each chunk to the latest assistant message and Brandee enters the speaking state at the first chunk. No artificial typewriter delay — her speaking duration tracks the actual stream rate.
+6. The frontend updates her face based on mood — sparkly star eyes for `excited`, side-eye for `skeptical`, full confetti for `celebrating`.
+7. Conversation history is preserved client-side and re-sent each request, so she has full context.
+
+The mood system means Brandee doesn't just go `idle → thinking → speaking → idle`. Her *expression* during speaking varies based on what she's actually saying. If she pushes back on a bad idea, she gets the skeptical squint. If she likes your concept, her eyes turn into stars.
+
+## How animation states are handled
+
+A single React state machine drives the avatar. Three layers stack on top of each other:
+
+**1. Primary state** (`agentState`):
+| State | Trigger | Visual |
+|---|---|---|
+| `idle` | Default | Floating, blinks, eyes drift naturally — and follow your cursor when it's near |
+| `bored` | Idle for 35+ seconds | Body slumps, tuft droops, flat mouth |
+| `listening` | User typing in input | Body leans forward, eyes look down toward input |
+| `thinking` | API request in flight | Body wobbles, squinted eyes look up, sweat drop |
+| `speaking` | Response streaming in | Body bobs, mouth opens/closes |
+| `error` | Request failed | Body shakes, X eyes, facepalm arm, squiggle mouth |
+| `celebrating` | User shipped something / Brandee's mood says so | Big jump, arms thrown up, confetti, star eyes |
+
+**2. Mood overlay** (`agentMood`, from AI response): `neutral`, `excited`, `confused`, `skeptical`, `playful`, `celebrating`. Modifies eyes, mouth, cheeks, tuft on top of the primary state.
+
+**3. Idle vignettes** (`useIdleBehaviors` hook): When Brandee is `idle`, a director schedules random short performances at increasing frequency the longer she's ignored:
+- **Looks around** — head and eyes track to one side
+- **Hums** — sways gently, music notes float up
+- **Stretches** — body extends vertically, arms reach up
+- **Watches a butterfly** — a butterfly flutters across, eyes follow
+- **Doodles** — leans down to a notepad and animated pencil strokes appear (one of the new v2.5 vignettes)
+- **Dances** — shoulder shimmy with stray notes (rare upbeat surprise, ~5% chance)
+- **Yawns** — covers her mouth with one arm, then drifts into…
+- **Sleeps** — sits down, breathes slowly, Z's float up
+- **Peeks** — when chat has unread messages, she glances toward it with an arrow indicator
+
+**4. Click reactions** (escalating): Click her once → startled (wide eyes, arms up). Twice → wave. Three times → giggle. Four+ → annoyed/crossed arms. Resets after 4s of being left alone.
+
+**5. Cursor-aware glance** *(new in v2.5)*: When your cursor enters a 360px radius around her, her eyes track its position. Disabled during busy states (thinking, speaking, dancing, etc.) so it doesn't fight other animations. Subtle but you feel it — she registers your presence.
+
+Animations are split between CSS keyframes (idle motions like breathing, mouth-talk) and React-driven SVG attribute changes (one-shot reactions, state-driven shape changes, cursor-tracked eye offsets). No animation libraries — everything is hand-built SVG + CSS, ~178KB JS / 56KB gzipped.
+
+## How I designed Brandee's personality
+
+The brief said *"think Microsoft Clippy, but actually good."* That framing was helpful because it made me identify what made Clippy memorable (visible character, moods, surprise) and what made him *annoying* (interruption, condescension, no off-switch).
+
+**Voice.** I wrote a system prompt that bans the standard AI tells — no "Great question!", no "I'd be happy to help!", no "As an AI...". She sounds like a sharp friend who works in branding: short, opinionated, dry. She uses 1–3 sentences most of the time. She has takes. The biggest single shift from v1 was adding the **mood metadata system** — Brandee tags every reply with her emotional state, which means her face actually reacts to what she's saying.
+
+**Body.** She has a distinct silhouette (round body, tuft on top) so she's recognizable in shadow. She has small arms that emerge for specific moments — waving, covering her mouth in a yawn, throwing them up to celebrate, leaning down to doodle, shimmying when she dances. The arms are crucial; they're 80% of why she reads as a *character* and not just an animated icon.
+
+**Inner life.** This is the marketability piece. The idle director is what makes her share-able. People will screenshot her napping. They'll record her watching the butterfly or doodling on a notepad. They'll tweet "look what Brandee just did" because *she does things you didn't ask her to do*. Predictability isn't memorable; surprise is.
+
+**Presence.** Cursor tracking and the onboarding wave both serve the same goal: make her feel *aware* of you. Not in a creepy way, but in a "she knows you're here" way. The first time you load the app, she waves at you and points to the chat button. After that she just exists alongside your work, occasionally glancing your direction.
+
+**Restraint.** I deliberately did *not* give her speech bubbles that pop up unprompted, or audio, or push notifications. Clippy's biggest sin was interrupting. Brandee performs only when you're looking at her — she doesn't fight for your attention, she rewards it. The settings panel makes this even clearer: if her vignettes annoy you, you can mute them.
+
+## What I improved in this round
+
+**Compared to v1** (the original chat prototype):
+- Moved her into a real workspace — mock SaaS shell with sidebar nav, KPI cards, dedicated "shelf" where she lives
+- Gave her arms — 80% of her character expression
+- Massive expression range (9 eye types, 12+ mouth shapes vs v1's 1 and 4)
+- 4 new states + 5 idle vignettes + 4 click reactions
+- Mood metadata system so face reacts to content, not just lifecycle
+- Idle director that escalates from quiet → vignettes → bored → yawn → nap
+- Tab focus awareness, mobile layout, `prefers-reduced-motion`
+
+**New in v2.5** (the polish round):
+- **Cursor-aware glance** — `useCursorGaze` hook computes pointer offset relative to her wrapper element; her eyes track within a 360px radius. Disabled during busy states.
+- **Onboarding wave** — first-load wave + animated bubble/arrow pointing at the chat button. localStorage flag so it never repeats. Auto-dismisses after 9s or any interaction.
+- **Three new vignettes** — *doodling* (leans to a notepad with animated pencil strokes), *dancing* (shoulder shimmy with stray notes, rare upbeat surprise), *peeking* (glances toward chat when there's an unread message).
+- **Streaming responses** — new `/api/chat/stream` endpoint emits SSE events (`mood`, `chunk`, `done`, `error`). Mood arrives first so Brandee's face changes before she starts talking. Client uses native `ReadableStream` — no extra dependency.
+- **Settings panel** — small gear in the user row. Rename her, swap her color (5 themes via CSS variable swap on the SVG gradient stops), toggle idle behaviors, force-enable reduce-motion. Persisted to localStorage.
+- **Tests** — Node's built-in test runner. 14 tests covering the mood parser and streaming extractor (including: split-across-chunks header, malformed JSON, unknown moods, give-up-after-N-bytes). `npm test --prefix server`.
+- **Accessibility completion** — `sr-only` live region narrating Brandee's state ("Brandee is thinking", "Brandee is napping"); chat panel has focus trap, ESC to close, ARIA labels everywhere; Cmd/Ctrl+K shortcut to open chat; `aria-keyshortcuts` exposed; visible focus rings using `:focus-visible`.
+- **Activity awareness** — moving the cursor near her counts as activity, resetting the idle clock the same way clicking would.
+
+## What I'd still improve with more time
+
+1. **Voice output with lip-sync.** Drive the mouth animation off audio amplitude (Web Audio analyser node) for proper lip-sync. ElevenLabs has a warm, slightly playful voice library that would fit her.
+2. **Procedural variation in vignettes.** Currently each vignette plays the same way. The butterfly path could be randomized; the doodle could draw different shapes; the dance could pick from several routines.
+3. **More reactive vignettes.** She could glance when you scroll past her, peek at the cursor when it idles for a moment, get visibly excited when you hover the "+ New Campaign" button. Tiny moments of attention that make her feel present.
+4. **Memory of user's style.** Over time, she could note things ("you tend to brief in 3-word taglines") and reference them lightly. This is the difference between a chatbot and an assistant. Requires a small persistence layer + summarization on the server.
+5. **Real evals on personality.** Write 30 tricky prompts, grade outputs against the voice rules, catch regressions when tweaking the system prompt. Especially valuable as the prompt grows.
+6. **More test coverage.** Right now tests cover the parser. The state machine (vignette scheduling, click escalation, mood transitions) deserves coverage too — that's where bugs hide.
+7. **Stream cancellation UX.** If you start a long response and want to cut her off, there's no UI for it. Should be a small "stop" button that aborts the fetch (the server already handles client disconnect).
+8. **Internationalization.** Right now her voice is English-only. The system prompt would need adjustment per locale; the mood tags should still work universally.
+9. **Telemetry hooks.** Anonymized counters for which vignettes play, which states get clicked, where users disengage — would inform what to add or cut.
+10. **A real "+ New Campaign" flow.** Right now clicking it just triggers Brandee's celebration. Even a stub modal would make the demo feel more like a product.
 
 ## Project structure
 
 ```
 brandee/
-├── package.json              # root scripts (concurrently runs both)
+├── package.json                  # root scripts (concurrently runs both)
+├── railway.toml                  # Railway deploy config
 ├── .gitignore
 ├── server/
-│   ├── server.js             # Express API, proxies AI calls
+│   ├── server.js                 # Express API + streaming endpoint
+│   ├── parseMoodHeader.js        # mood extractor (testable module)
+│   ├── parseMoodHeader.test.js   # 14 tests, run with `npm test`
 │   ├── package.json
-│   └── .env         
+│   └── .env.example
 └── client/
     ├── index.html
-    ├── vite.config.js        # proxies /api → :3001 in dev
+    ├── vite.config.js            # proxies /api → :3001 in dev
     ├── package.json
     └── src/
         ├── main.jsx
-        ├── App.jsx           # chat logic + state machine
-        ├── BrandeeAvatar.jsx # SVG character + animations
-        └── styles.css
-
-
-## Tech stack
-
-**Frontend**
-- React 18 and Vite
-- Pure CSS with CSS variables 
-- SVG character with state-driven CSS animations 
-- DM Sans and Fraunces (Google Fonts)
-
-**Backend**
-- Node.js + Express (ESM)
-- `@anthropic-ai/sdk` for AI calls
-- `express-rate-limit` for basic abuse protection
-- API key stays server-side
-
-## How the AI agent works
-
-1. **User sends a message** frontend appends to local conversation state and POSTs the full message history to `/api/chat`.
-2. **Vite proxies** `/api/*` to the Express server at `localhost:3001` in dev. In production, Express serves both the API and the built client.
-3. **Server validates** the payload (length caps, role shape, rate limiting at 30 req/min) and forwards to the Anthropic API with Brandee's system prompt.
-4. **Server returns the text** to the client. The frontend renders it via a typewriter effect, which doubles as the timing source for the "speaking" animation state.
-5. **Conversation history is preserved** client side and re-sent each request, so Brandee has full context for the session.
-
-The system prompt defines Brandee's personality: warm, opinionated, concise, anti corporate speak. She's tuned for short, conversational answers rather than essays.
-
-## How animation states are handled
-
-A single `agentState` value (`'idle'  'listening'  'thinking' 'speaking'`) drives every visual element of the avatar.
-
-
-( `idle` ) No activity  Gentle floating, occasional blinks, eyes drift naturally 
-( `listening` ) User has typed text in the input  Body leans forward, pulse rings, eyes look down toward input 
-( `thinking` ) Request is in flight Body wobbles, eyes squint upward, three dots fade in above her head 
-( `speaking` ) Response is typewriting in Body bobs, mouth opens/closes rhythmically 
-
-The **speaking** state's duration is driven by the typewriter, when the last character renders, state flips back to `idle`. The animation is tied to actual output rather than an arbitrary timeout.
-
-The avatar is a single inline SVG. Body, eyes, mouth, and accessories are separate `<g>` groups so each can animate independently. State-specific keyframes are toggled by a `state-{name}` class on the wrapper. Eye tracking is React-driven state computes the `cx/cy` offset.
+        ├── App.jsx               # composition + state machine + streaming consumer
+        ├── styles.css            # all styles + animation keyframes (~1500 lines)
+        ├── components/
+        │   ├── BrandeeAvatar.jsx # the character (forwardRef, ~640 lines)
+        │   ├── AppShell.jsx      # mock SaaS sidebar with Brandee's home
+        │   ├── ChatPanel.jsx     # slide-out chat, focus trap, ESC, ARIA live
+        │   ├── MockDashboard.jsx # fake brand-platform main content
+        │   └── SettingsPanel.jsx # name, color, idle, reduce-motion
+        └── hooks/
+            ├── useIdleBehaviors.js   # vignette director + peeking
+            ├── useCursorGaze.js      # pointer-tracking eye offset
+            └── useOnboarding.jsx     # first-run wave + pointer
+```
 
 ## Deployment
 
-The server is set up to serve the built client from `client/dist` if it exists, so you can deploy the whole thing as a single Node process:
+The server serves the built client from `client/dist` if it exists, so the whole app deploys as a single Node process.
 
+**Railway** (recommended): push to GitHub, connect repo, set `ANTHROPIC_API_KEY`, generate domain. The included `railway.toml` handles the rest.
+
+**Single-process production**:
 ```bash
-npm run build        # builds client to client/dist/
-npm start            # server serves API + static files
+npm run build      # builds client to client/dist/
+npm start          # server serves API + static files on $PORT
 ```
 
-Alternative: deploy frontend to Vercel/Netlify and backend separately to Render/Fly/Railway. Set `CLIENT_ORIGIN` on the server to your frontend's URL so CORS allows it.
+## Notes
 
-## What I'd improve with more time
-
-1. **Streaming responses.** Right now the server returns the full response, then the client typewriters it. Real SSE streaming would feel snappier and let the speaking state start the moment the first token arrives.
-2. **Voice output.** Wire up Web Speech API or ElevenLabs so Brandee actually talks. Drive the mouth animation off the audio amplitude for proper lip sync.
-3. **Conversation persistence.** Currently session only. Add IndexedDB or a Postgres + auth layer to keep history across visits.
-4. **Real evals on personality.** The system prompt is good but unverified. I'd write a small eval suite (10–20 tricky prompts) and grade outputs against the voice rules to catch regressions when tweaking.
-5. **Accessibility audit.** Keyboard nav works, but I'd add proper ARIA live regions for streaming responses, `prefers-reduced-motion` handling for the avatar animations, and screen reader testing.
-6. **Expression range.** Right now four states. With more time: emotional reactions (delight, surprise, "well actually" smirk) triggered by lightweight sentiment analysis on her own outputs.
-7. **Tests.** Vitest for the frontend (state machine logic, message rendering), supertest for the backend (validation, rate limits).
-8. **Deployment scripting.** Dockerfile, GitHub Actions for CI, env var management via something like Doppler.
-
-
-
-
+- **Never commit `server/.env`** — it's in `.gitignore`. If you push a key to a public repo, rotate it immediately at console.anthropic.com.
+- The frontend never sees the API key. It only knows how to talk to your local `/api/chat/stream` (or `/api/chat` non-streaming fallback) endpoint.
+- Default model is `claude-sonnet-4-5`. Switch via `ANTHROPIC_MODEL` env var: `claude-haiku-4-5` for cheaper/faster, `claude-opus-4-7` for max quality.
+- Keyboard shortcut `Cmd/Ctrl+K` opens/closes chat.
+- Settings are stored in `localStorage`. Clearing it resets her to "Peach Brandee" and re-triggers the onboarding moment.
