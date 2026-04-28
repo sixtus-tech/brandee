@@ -339,8 +339,10 @@ export default function App() {
 
     let receivedAnyText = false;
     let celebrationDone = false;
+    let accumulatedText = ''; // ← track text locally so finalize() doesn't depend on React state timing
 
     const appendChunk = (text) => {
+      accumulatedText += text;
       setMessages((prev) => {
         const copy = [...prev];
         const last = copy[copy.length - 1];
@@ -358,12 +360,13 @@ export default function App() {
     };
 
     const finalize = () => {
-      let finalText = '';
+      // Use the locally-accumulated text — reading from React state here was racy
+      // due to React 18 automatic batching, which caused intermittent TTS dropouts.
+      const finalText = accumulatedText;
       setMessages((prev) => {
         const copy = [...prev];
         const last = copy[copy.length - 1];
         copy[copy.length - 1] = { ...last, typing: false };
-        finalText = last.content || '';
         return copy;
       });
       setIsLoading(false);
