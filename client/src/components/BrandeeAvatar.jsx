@@ -21,6 +21,7 @@ const BrandeeAvatar = forwardRef(function BrandeeAvatar({
   vignette = null,
   cursorGaze = null,
   audioAmplitude = 0,
+  roastMode = false,
   onPoke,
   size = 200,
   compact = false,
@@ -305,7 +306,26 @@ const BrandeeAvatar = forwardRef(function BrandeeAvatar({
           {/* Top highlight */}
           <ellipse cx="100" cy="80" rx="40" ry="30" fill="url(#highlightGrad)" />
 
-          {/* Tuft on top — bends/droops/perks per mood */}
+          {/* PENCIL — tucked behind the tuft. Brandee's signature.
+              She IS a brand & creative companion, after all.
+              Drawn first so the tuft renders on top, creating the "tucked" look. */}
+          <g className="pencil" transform="rotate(18 142 28)">
+            {/* Eraser cap (pink) */}
+            <ellipse cx="142" cy="-2" rx="5" ry="3" fill="#E8A0A0" />
+            <rect x="137" y="-2" width="10" height="6" fill="#E8A0A0" />
+            {/* Metal ferrule with subtle bands */}
+            <rect x="137" y="4" width="10" height="3.5" fill="#B8B0A8" />
+            <line x1="137" y1="5.2" x2="147" y2="5.2" stroke="#8A847C" strokeWidth="0.5" />
+            <line x1="137" y1="6.6" x2="147" y2="6.6" stroke="#8A847C" strokeWidth="0.5" />
+            {/* Yellow pencil body */}
+            <rect x="137" y="7.5" width="10" height="22" fill="#F2C84A" />
+            {/* Subtle highlight stripe down the side */}
+            <rect x="138" y="7.5" width="1.5" height="22" fill="#FFE08A" opacity="0.7" />
+            {/* Bottom edge — fades into where it tucks behind the tuft */}
+            <rect x="137" y="29" width="10" height="3" fill="#D4A82A" opacity="0.6" />
+          </g>
+
+          {/* Tuft on top — bends/droops/perks per mood. Renders on top of the pencil. */}
           <path
             d="M 130 35 Q 138 18 148 28 Q 142 38 130 40 Z"
             fill="var(--brand-deep, #C46A40)"
@@ -337,6 +357,41 @@ const BrandeeAvatar = forwardRef(function BrandeeAvatar({
             isThinking={isThinking}
             blink={blink}
           />
+
+          {/* GLASSES — Brandee's "I'm being serious" look. Only in honest mode.
+              Round, intellectual, clear lenses so eyes still show through. */}
+          {roastMode && (
+            <g className="glasses">
+              {/* Left lens */}
+              <circle
+                cx="100" cy="120" r="22"
+                fill="rgba(255, 255, 255, 0.05)"
+                stroke="#1F1A14"
+                strokeWidth="3"
+              />
+              {/* Right lens */}
+              <circle
+                cx="160" cy="120" r="22"
+                fill="rgba(255, 255, 255, 0.05)"
+                stroke="#1F1A14"
+                strokeWidth="3"
+              />
+              {/* Bridge */}
+              <path
+                d="M 122 120 Q 130 116 138 120"
+                stroke="#1F1A14"
+                strokeWidth="2.5"
+                fill="none"
+                strokeLinecap="round"
+              />
+              {/* Subtle lens reflection on the left lens */}
+              <ellipse
+                cx="93" cy="113" rx="6" ry="3"
+                fill="rgba(255, 255, 255, 0.4)"
+                transform="rotate(-25 93 113)"
+              />
+            </g>
+          )}
 
           {/* Confused question mark above head */}
           {isConfused && (

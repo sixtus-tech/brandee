@@ -156,6 +156,7 @@ const VoiceMode = forwardRef(function VoiceMode({
             vignette={vignette}
             cursorGaze={cursorGaze}
             audioAmplitude={audioAmplitude}
+            roastMode={roastMode}
             size={340}
           />
           {/* Pulsing ring when listening or speaking */}

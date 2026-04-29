@@ -30,6 +30,8 @@ export default function ChatColumn({
   sttInterim = '',
   onStartListening,
   onStopListening,
+  // Drawer mode
+  onClose,
 }) {
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
@@ -77,6 +79,13 @@ export default function ChatColumn({
 
   return (
     <section className="chat-column" aria-label={`Chat with ${brandeeName}`}>
+      {roastMode && (
+        <div className="chat-mode-banner">
+          <span className="brand-dot" />
+          <span className="serif">Honest mode</span>
+          <span className="chat-banner-sub">— I'll tell you what I actually think.</span>
+        </div>
+      )}
       <div className="chat-history" ref={scrollRef}>
         {!isEmpty &&
           messages.map((m, i) => (
