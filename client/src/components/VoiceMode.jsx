@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useRef, useState } from 'react';
 import BrandeeAvatar from './BrandeeAvatar.jsx';
+import SkyBackdrop from './SkyBackdrop.jsx';
 
 /**
  * VoiceMode — full-screen voice conversation layout.
@@ -117,6 +118,7 @@ const VoiceMode = forwardRef(function VoiceMode({
 
   return (
     <div className={`voice-mode ${phase} ${roastMode ? 'roast' : ''}`}>
+      <SkyBackdrop />
       <header className="voice-header">
         <div className="brand-mark">
           <span className="brand-dot" />
