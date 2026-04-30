@@ -168,10 +168,14 @@ const BrandeeAvatar = forwardRef(function BrandeeAvatar({
       <span className="sr-only" aria-live="polite">{srDescription}</span>
       <svg viewBox="0 0 260 260" xmlns="http://www.w3.org/2000/svg" className="brandee-svg">
         <defs>
-          <radialGradient id="bodyGrad" cx="35%" cy="30%" r="80%">
-            <stop offset="0%" stopColor="var(--brand-primary, #F4A87C)" stopOpacity="0.55" />
-            <stop offset="55%" stopColor="var(--brand-primary, #F4A87C)" />
-            <stop offset="100%" stopColor="var(--brand-deep, #C46A40)" />
+          {/* Body — radial gradient driven all the way to dark edges for 3D ball feel.
+              Goes white → cream → peach → deep amber → dark brown at the rim. */}
+          <radialGradient id="bodyGrad" cx="35%" cy="25%" r="80%">
+            <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.95" />
+            <stop offset="14%" stopColor="#FFE4D2" />
+            <stop offset="40%" stopColor="var(--brand-primary, #F4A87C)" />
+            <stop offset="78%" stopColor="var(--brand-deep, #C46A40)" />
+            <stop offset="100%" stopColor="#5C2F1A" />
           </radialGradient>
           <radialGradient id="cheekGrad" cx="50%" cy="50%" r="50%">
             <stop offset="0%" stopColor="#E85A4F" stopOpacity="0.55" />
@@ -188,6 +192,20 @@ const BrandeeAvatar = forwardRef(function BrandeeAvatar({
           <radialGradient id="armGrad" cx="40%" cy="40%" r="80%">
             <stop offset="0%" stopColor="var(--brand-primary, #F4A87C)" />
             <stop offset="100%" stopColor="var(--brand-deep, #C46A40)" />
+          </radialGradient>
+          {/* Galaxy gradient for the eyes — deep navy → soft purple-black.
+              Adds depth versus flat black, reads more "alive". */}
+          <radialGradient id="eyeGrad" cx="40%" cy="35%" r="75%">
+            <stop offset="0%" stopColor="#3A2840" />
+            <stop offset="55%" stopColor="#1F1428" />
+            <stop offset="100%" stopColor="#0A050F" />
+          </radialGradient>
+          {/* Glossy top highlight — bigger and brighter, the curved white catch
+              that sells the "3D ball" feel like in the gemini reference. */}
+          <radialGradient id="bodyGloss" cx="50%" cy="0%" r="60%" fy="-15%">
+            <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.95" />
+            <stop offset="40%" stopColor="#FFFFFF" stopOpacity="0.45" />
+            <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
           </radialGradient>
           <filter id="softShadow" x="-50%" y="-50%" width="200%" height="200%">
             <feGaussianBlur in="SourceAlpha" stdDeviation="3" />
@@ -303,7 +321,13 @@ const BrandeeAvatar = forwardRef(function BrandeeAvatar({
         <g className="body-group" filter="url(#softShadow)">
           {/* Body */}
           <ellipse cx="130" cy="130" rx="92" ry="96" fill="url(#bodyGrad)" />
-          {/* Top highlight */}
+          {/* Glossy top sheen — wide curved catch-light, sells the 3D feel */}
+          <ellipse cx="130" cy="62" rx="80" ry="48" fill="url(#bodyGloss)" />
+          {/* Sharp specular highlight strip — the thin white catch across the top */}
+          <ellipse cx="120" cy="62" rx="48" ry="6" fill="#FFFFFF" opacity="0.55" />
+          {/* Smaller secondary catchlight — left side */}
+          <ellipse cx="80" cy="92" rx="20" ry="11" fill="#FFFFFF" opacity="0.4" transform="rotate(-25 80 92)" />
+          {/* Top highlight — concentrated bright spot */}
           <ellipse cx="100" cy="80" rx="40" ry="30" fill="url(#highlightGrad)" />
 
           {/* PENCIL — tucked behind the tuft. Brandee's signature.
@@ -539,26 +563,34 @@ function Eyes({ eyeShape, offset, isThinking, blink }) {
     default:
       return (
         <g>
+          {/* Galaxy-gradient eye (deep navy/purple instead of flat black) — more dimensional */}
           <ellipse
             cx={lx}
             cy={ly}
-            rx="8"
-            ry={isThinking ? 2 : 11}
-            fill="#1A1815"
+            rx="9"
+            ry={isThinking ? 2 : 12}
+            fill="url(#eyeGrad)"
             style={trans}
           />
           <ellipse
             cx={rx}
             cy={ry}
-            rx="8"
-            ry={isThinking ? 2 : 11}
-            fill="#1A1815"
+            rx="9"
+            ry={isThinking ? 2 : 12}
+            fill="url(#eyeGrad)"
             style={trans}
           />
           {!blink && !isThinking && (
             <>
-              <circle cx={lx + 2} cy={ly - 4} r="2.5" fill="white" />
-              <circle cx={rx + 2} cy={ry - 4} r="2.5" fill="white" />
+              {/* Primary white catchlight — upper-right */}
+              <ellipse cx={lx + 2.5} cy={ly - 4.5} rx="3" ry="3.5" fill="white" />
+              <ellipse cx={rx + 2.5} cy={ry - 4.5} rx="3" ry="3.5" fill="white" />
+              {/* Secondary coral sparkle — lower-left, smaller */}
+              <circle cx={lx - 3} cy={ly + 4} r="1.4" fill="#FFB6A0" opacity="0.85" />
+              <circle cx={rx - 3} cy={ry + 4} r="1.4" fill="#FFB6A0" opacity="0.85" />
+              {/* Tiny tertiary highlight on the catchlight itself for sparkle */}
+              <circle cx={lx + 1.5} cy={ly - 5.5} r="0.8" fill="white" opacity="0.95" />
+              <circle cx={rx + 1.5} cy={ry - 5.5} r="0.8" fill="white" opacity="0.95" />
             </>
           )}
         </g>
