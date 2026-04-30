@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Sidebar from './components/Sidebar.jsx';
 import ChatColumn from './components/ChatColumn.jsx';
 import VoiceMode from './components/VoiceMode.jsx';
+import SkyBackdrop from './components/SkyBackdrop.jsx';
 import SettingsPanel, { COLOR_OPTIONS } from './components/SettingsPanel.jsx';
 import { OnboardingPointer } from './hooks/useOnboarding.jsx';
 import useIdleBehaviors from './hooks/useIdleBehaviors.js';
@@ -522,6 +523,7 @@ export default function App() {
           />
 
           <main className="app-main">
+            <SkyBackdrop />
             <ChatColumn
               messages={messages}
               input={input}
