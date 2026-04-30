@@ -78,7 +78,7 @@ export default function ChatColumn({
       ];
 
   return (
-    <section className="chat-column" aria-label={`Chat with ${brandeeName}`}>
+    <section className={`chat-column ${isEmpty ? 'is-empty' : 'is-active'}`} aria-label={`Chat with ${brandeeName}`}>
       {roastMode && (
         <div className="chat-mode-banner">
           <span className="brand-dot" />
@@ -86,9 +86,26 @@ export default function ChatColumn({
           <span className="chat-banner-sub">— I'll tell you what I actually think.</span>
         </div>
       )}
-      <div className="chat-history" ref={scrollRef}>
-        {!isEmpty &&
-          messages.map((m, i) => (
+
+      {/* Welcome hero — only shown before the first message */}
+      {isEmpty && (
+        <div className="chat-welcome">
+          <div className="chat-welcome-inner">
+            <h1 className="welcome-headline serif">
+              {roastMode ? 'Drop something. I\'ll be honest.' : `Hi, I'm ${brandeeName}.`}
+            </h1>
+            <p className="welcome-sub">
+              {roastMode
+                ? "Taglines, copy, About pages, logos — give me anything generic and I'll tell you why."
+                : "Naming, positioning, copy, taste calls. Throw something at me."}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {!isEmpty && (
+        <div className="chat-history" ref={scrollRef}>
+          {messages.map((m, i) => (
             <div key={i} className={`msg msg-${m.role}`}>
               <div className="msg-bubble">
                 {m.imageDataUrl && (
@@ -103,14 +120,15 @@ export default function ChatColumn({
               </div>
             </div>
           ))}
-        {error && <div className="error-banner" role="alert">{error}</div>}
-      </div>
+          {error && <div className="error-banner" role="alert">{error}</div>}
+        </div>
+      )}
 
       <div className="sr-only" aria-live="polite" aria-atomic="true">
         {latestAssistantMessage}
       </div>
 
-      <div className={`chat-bottom ${showOnboarding ? 'onboarding-active' : ''} ${roastMode ? 'roast-active' : ''}`}>
+      <div className={`chat-bottom ${showOnboarding ? 'onboarding-active' : ''} ${roastMode ? 'roast-active' : ''} ${isEmpty ? 'is-hero' : ''}`}>
         {isEmpty && (
           <div className="suggestions">
             {suggestions.map((s) => (
