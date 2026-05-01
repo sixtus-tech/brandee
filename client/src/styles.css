@@ -2048,10 +2048,42 @@ button:focus-visible,
   min-height: 32px;
   line-height: 1.3;
   padding: 0 24px;
-  text-shadow: 0 2px 18px rgba(31, 26, 60, 0.4);
+  text-shadow:
+    0 2px 18px rgba(31, 26, 60, 0.6),
+    0 1px 4px rgba(31, 26, 60, 0.5);
+  font-weight: 500;
 }
 
-.voice-mode.listening .voice-status-text {
+/* Live transcript variant — glassy backing card so the user can clearly read
+   what's being captured. The transcript can be long, so this prevents the
+   text from getting lost against the busy sky behind. */
+.voice-status-text.is-transcript {
+  font-style: normal;
+  font-family: var(--sans);
+  font-weight: 500;
+  font-size: clamp(16px, 2vw, 19px);
+  color: var(--ink);
+  background: rgba(255, 248, 238, 0.92);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 18px;
+  padding: 14px 22px;
+  margin: 0 auto;
+  max-width: 640px;
+  box-shadow:
+    0 4px 16px rgba(31, 26, 60, 0.18),
+    0 12px 32px rgba(31, 26, 60, 0.12);
+  text-shadow: none;
+  letter-spacing: -0.005em;
+  animation: transcript-in 0.2s ease-out;
+}
+@keyframes transcript-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.voice-mode.listening .voice-status-text:not(.is-transcript) {
   color: #FFCFC5;
 }
 
@@ -2134,25 +2166,33 @@ button:focus-visible,
 
 .voice-help {
   font-size: 12px;
-  color: rgba(255, 248, 238, 0.75);
+  color: rgba(255, 248, 238, 0.9);
   letter-spacing: 0.04em;
   min-height: 16px;
-  text-shadow: 0 1px 8px rgba(31, 26, 60, 0.4);
+  text-shadow: 0 1px 12px rgba(31, 26, 60, 0.65);
+  font-weight: 500;
 }
 
 .voice-last-user {
-  font-size: 12px;
-  color: rgba(255, 248, 238, 0.75);
+  font-size: 13px;
+  color: rgba(255, 248, 238, 0.9);
   font-family: var(--sans);
   max-width: 640px;
   text-align: center;
-  padding: 0 24px;
-  text-shadow: 0 1px 8px rgba(31, 26, 60, 0.4);
+  padding: 8px 14px;
+  background: rgba(31, 26, 60, 0.28);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 100px;
+  font-weight: 500;
+  text-shadow: 0 1px 8px rgba(31, 26, 60, 0.55);
 }
 .voice-last-user em {
-  color: #FFF8EE;
+  color: #FFFFFF;
   font-style: italic;
   font-family: var(--serif);
+  margin-left: 4px;
 }
 
 .voice-warning {

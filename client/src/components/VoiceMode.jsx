@@ -177,7 +177,10 @@ const VoiceMode = forwardRef(function VoiceMode({
           </span>
         </div>
 
-        <div className="voice-status-text" aria-live="polite">
+        <div
+          className={`voice-status-text ${phase === 'listening' && stt.interim ? 'is-transcript' : ''}`}
+          aria-live="polite"
+        >
           {statusText}
         </div>
 
