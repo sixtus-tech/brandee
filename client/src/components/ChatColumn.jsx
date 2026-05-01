@@ -65,16 +65,19 @@ export default function ChatColumn({
   };
 
   const isEmpty = messages.length === 0;
+  // Suggestions can be either text prompts or special actions (like opening the file picker).
+  // Action chips look the same but trigger different behavior — used for the logo roast chip.
   const suggestions = roastMode
     ? [
-        'Roast my tagline: "We move fast and make magic."',
-        "Why does my About page sound generic?",
-        'Tell me what brand sounds like a dentist office',
+        { kind: 'image', label: '📸 Drop your logo for an honest take', primary: true },
+        { kind: 'text', label: 'Roast my tagline: "We move fast and make magic."' },
+        { kind: 'text', label: "Why does my About page sound generic?" },
       ]
     : [
-        'Help me name a small coffee brand',
-        'My tagline feels generic, can you fix it',
-        "What's wrong with my About page copy?",
+        { kind: 'image', label: '📸 Want my take on your logo? Drop it here.', primary: true },
+        { kind: 'text', label: 'Help me name a small coffee brand' },
+        { kind: 'text', label: 'My tagline feels generic, can you fix it' },
+        { kind: 'text', label: "What's wrong with my About page copy?" },
       ];
 
   return (
@@ -96,8 +99,8 @@ export default function ChatColumn({
             </h1>
             <p className="welcome-sub">
               {roastMode
-                ? "Taglines, copy, About pages, logos — give me anything generic and I'll tell you why."
-                : "Naming, positioning, copy, taste calls. Throw something at me."}
+                ? "Drop a logo, paste a tagline, share your About page. I'll be honest."
+                : "Naming, taglines, copy, taste calls. Type a question or drop an image."}
             </p>
           </div>
         </div>
@@ -133,15 +136,19 @@ export default function ChatColumn({
           <div className="suggestions">
             {suggestions.map((s) => (
               <button
-                key={s}
-                className="suggestion-chip"
+                key={s.label}
+                className={`suggestion-chip ${s.kind === 'image' ? 'is-image-trigger' : ''} ${s.primary ? 'is-primary' : ''}`}
                 onClick={() => {
-                  setInput(s);
                   onDismissOnboarding?.();
-                  setTimeout(() => inputRef.current?.focus(), 50);
+                  if (s.kind === 'image') {
+                    fileInputRef.current?.click();
+                  } else {
+                    setInput(s.label);
+                    setTimeout(() => inputRef.current?.focus(), 50);
+                  }
                 }}
               >
-                {s}
+                {s.label}
               </button>
             ))}
           </div>

@@ -961,6 +961,53 @@ body {
   box-shadow: 0 6px 20px rgba(31, 26, 60, 0.18);
 }
 
+/* Image-trigger primary chip — the "drop your logo" callout.
+   Bigger, dashed accent border, subtle pulse to draw the eye. */
+.suggestion-chip.is-primary {
+  background: rgba(255, 248, 238, 0.95);
+  border: 1.5px dashed var(--accent);
+  font-size: 14.5px;
+  font-weight: 500;
+  padding: 12px 20px;
+  color: var(--ink);
+  box-shadow:
+    0 4px 16px rgba(31, 26, 60, 0.14),
+    0 0 0 0 rgba(184, 118, 58, 0.25);
+  animation: chip-pulse 2.8s ease-in-out infinite;
+}
+.suggestion-chip.is-primary:hover {
+  background: #FFF8EE;
+  border-style: solid;
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  animation: none;
+  box-shadow: 0 8px 24px rgba(184, 118, 58, 0.22);
+}
+@keyframes chip-pulse {
+  0%, 100% { box-shadow: 0 4px 16px rgba(31, 26, 60, 0.14), 0 0 0 0 rgba(184, 118, 58, 0.30); }
+  50% { box-shadow: 0 4px 16px rgba(31, 26, 60, 0.14), 0 0 0 8px rgba(184, 118, 58, 0); }
+}
+
+/* In honest mode the primary chip leans red */
+.chat-column .chat-mode-banner ~ * .suggestion-chip.is-primary,
+.is-active.chat-column .suggestion-chip.is-primary {
+  /* Inherits default; honest specifically below */
+}
+.chat-bottom.roast-active .suggestion-chip.is-primary {
+  border-color: var(--accent-hot);
+}
+.chat-bottom.roast-active .suggestion-chip.is-primary:hover {
+  border-color: var(--accent-hot);
+  box-shadow: 0 8px 24px rgba(232, 90, 79, 0.25);
+}
+.chat-bottom.roast-active .suggestion-chip.is-primary {
+  animation-name: chip-pulse-roast;
+}
+@keyframes chip-pulse-roast {
+  0%, 100% { box-shadow: 0 4px 16px rgba(31, 26, 60, 0.14), 0 0 0 0 rgba(232, 90, 79, 0.35); }
+  50% { box-shadow: 0 4px 16px rgba(31, 26, 60, 0.14), 0 0 0 8px rgba(232, 90, 79, 0); }
+}
+
 .msg {
   display: flex;
   animation: msg-in 0.3s cubic-bezier(0.4, 0, 0.2, 1);
